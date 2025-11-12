@@ -7,11 +7,13 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor // 기본 생성자 자동 생성
+@Table(name = "user")
 @Entity // JPA 엔티티임을 명시
 public class User {
 
     @Id // 기본 키
     @GeneratedValue(strategy = GenerationType.IDENTITY) // 자동 증가
+    @Column(name = "user_id")
     private Long id; // 서비스 내 사용자 고유 ID
 
     // 카카오 로그인 연동을 위한 가장 중요한 식별자
