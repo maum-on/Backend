@@ -14,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -88,7 +87,6 @@ public class FileProcessingService {
                     chatDto.getMessages().add(msgDto);
                     participantNames.add(sender);
                 }
-                // (선택사항) 멀티라인 메시지 처리 로직이 필요하다면 else 문에서 이전 메시지 content에 append 수행
             }
         }
 
@@ -96,9 +94,6 @@ public class FileProcessingService {
         for (String name : participantNames) {
             chatDto.getParticipants().add(new UnifiedChatResponse.ParticipantDto(name));
         }
-
-        // 메시지 시간순 정렬 (혹시 모르니)
-        // chatDto.getMessages().sort(Comparator.comparing(UnifiedChatDto.MessageDto::getTimestampMs));
 
         return chatDto;
     }
