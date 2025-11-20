@@ -54,4 +54,8 @@ public class Diary {
     @OneToMany(mappedBy = "diary", fetch = FetchType.LAZY)
     @Builder.Default
     private List<DiaryFile> diaryFiles = new ArrayList<>();
+
+    public void updateWriteDiary(String writeDiary) {
+        this.writeDiary = writeDiary;
+    }
 }

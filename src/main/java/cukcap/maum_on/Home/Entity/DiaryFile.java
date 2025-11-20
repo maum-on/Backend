@@ -1,12 +1,16 @@
 package cukcap.maum_on.Home.Entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Getter
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "diary_file") // DB 스키마 이름: DiaryFile
 public class DiaryFile {
