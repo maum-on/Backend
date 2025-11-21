@@ -44,4 +44,9 @@ public class MonthlySummary {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    public void updateStatistics(BigDecimal avgTemp, String emotionsJson) {
+        this.avgTemp = avgTemp;
+        this.emotionsJson = emotionsJson;
+    }
 }
