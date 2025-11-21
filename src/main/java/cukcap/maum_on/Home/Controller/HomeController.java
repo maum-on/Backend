@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -28,7 +28,7 @@ public class HomeController {
     ) {
         // 1. 보안 검증: 로그인한 사람(JWT)과 요청한 userId가 같은지 확인
         if (!principalDetails.getId().equals(userId)) {
-            Map<String, Object> errorResponse = new HashMap<>();
+            Map<String, Object> errorResponse = new LinkedHashMap<>();
             errorResponse.put("code", 403);
             errorResponse.put("message", "권한이 없습니다. 본인의 정보만 조회 가능합니다.");
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
@@ -38,7 +38,7 @@ public class HomeController {
         HomeResponse homeData = homeService.getHomeData(userId, today);
 
         // 3. 응답 포맷팅
-        Map<String, Object> response = new HashMap<>();
+        Map<String, Object> response = new LinkedHashMap<>();
         response.put("code", 200);
         response.put("message", "이번 달 정보 조회 성공");
         response.put("data", homeData);
