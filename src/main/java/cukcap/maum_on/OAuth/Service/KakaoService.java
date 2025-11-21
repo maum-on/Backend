@@ -17,7 +17,7 @@ import java.util.Optional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class kakaoService {
+public class KakaoService {
     private final UserRepository userRepository;
 
     @Value("${kakao.client-id}")
@@ -28,6 +28,8 @@ public class kakaoService {
     private String tokenUri;
     @Value("${kakao.user-info-uri}")
     private String userInfoUri;
+    @Value("${kakao.admin-key}")
+    private String adminKey;
 
 
     // 1. 인가 코드로 액세스 토큰 요청
@@ -126,5 +128,53 @@ public class kakaoService {
             userRepository.save(user);
         }
         return user;
+    }
+
+    // 4. 카카오 로그아웃 (Admin Key 사용)
+    public void kakaoLogout(Long kakaoId) {
+        String logoutUrl = "https://kapi.kakao.com/v1/user/logout";
+
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Authorization", "KakaoAK " + adminKey); // Admin Key 사용
+        headers.add("Content-Type", "application/x-www-form-urlencoded");
+
+        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+        params.add("target_id_type", "user_id");
+        params.add("target_id", String.valueOf(kakaoId));
+
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
+
+        try {
+            restTemplate.postForObject(logoutUrl, request, String.class);
+            log.info("카카오 로그아웃 성공 (kakaoId: {})", kakaoId);
+        } catch (Exception e) {
+            log.error("카카오 로그아웃 실패: {}", e.getMessage());
+            // 로그아웃 실패해도 우리 서비스 로그아웃은 진행
+        }
+    }
+
+    // 5. 카카오 연결 끊기 (회원 탈퇴 시 사용)
+    public void kakaoUnlink(Long kakaoId) {
+        String unlinkUrl = "https://kapi.kakao.com/v1/user/unlink";
+
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Authorization", "KakaoAK " + adminKey); // Admin Key 사용
+        headers.add("Content-Type", "application/x-www-form-urlencoded");
+
+        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+        params.add("target_id_type", "user_id");
+        params.add("target_id", String.valueOf(kakaoId));
+
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
+
+        try {
+            restTemplate.postForObject(unlinkUrl, request, String.class);
+            log.info("카카오 연결 끊기 성공 (kakaoId: {})", kakaoId);
+        } catch (Exception e) {
+            log.error("카카오 연결 끊기 실패: {}", e.getMessage());
+            throw new RuntimeException("카카오 연결 끊기 실패");
+        }
     }
 }

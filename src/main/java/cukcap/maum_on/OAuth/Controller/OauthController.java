@@ -1,15 +1,19 @@
 package cukcap.maum_on.OAuth.Controller;
 
+import cukcap.maum_on.OAuth.Entity.PrincipalDetails;
 import cukcap.maum_on.OAuth.Entity.User;
 import cukcap.maum_on.OAuth.Config.Jwt.JwtTokenProvider;
-import cukcap.maum_on.OAuth.Service.kakaoService;
+import cukcap.maum_on.OAuth.Service.KakaoService;
+import cukcap.maum_on.OAuth.Service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
@@ -21,8 +25,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class OauthController {
 
-    private final kakaoService kakaoService;
+    private final KakaoService kakaoService;
     private final JwtTokenProvider tokenProvider;
+    private final UserService userService;
 
     @Value("${kakao.client-id}")
     private String clientId;
@@ -70,5 +75,40 @@ public class OauthController {
             errorResponse.put("message", "로그인 처리 중 오류 발생");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
         }
+    }
+
+    @PostMapping("/auth/kakao/logout")
+    @ResponseBody
+    public ResponseEntity<Map<String, String>> logout(@AuthenticationPrincipal PrincipalDetails principalDetails) {
+        if (principalDetails != null) {
+            // DB에서 User 조회하여 kakaoId 획득
+            Long kakaoId = principalDetails.getUser().getKakaoId();
+            // 카카오 강제 로그아웃 처리
+            kakaoService.kakaoLogout(kakaoId);
+        }
+
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "로그아웃 성공. 클라이언트에서 토큰을 삭제해주세요.");
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/auth/kakao/withdraw")
+    @ResponseBody
+    public ResponseEntity<Map<String, String>> withdraw(@AuthenticationPrincipal PrincipalDetails principalDetails) {
+        if (principalDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "로그인이 필요합니다."));
+        }
+
+        Long userId = principalDetails.getId();
+
+        // 1. DB 데이터 삭제 및 Kakao ID 반환
+        Long kakaoId = userService.deleteUserAccount(userId);
+
+        // 2. 카카오 연결 끊기
+        kakaoService.kakaoUnlink(kakaoId);
+
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "회원 탈퇴 및 카카오 연결 끊기 완료");
+        return ResponseEntity.ok(response);
     }
 }
