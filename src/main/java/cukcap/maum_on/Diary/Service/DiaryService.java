@@ -44,7 +44,7 @@ public class DiaryService {
 
     // 감정별 온도 변화량 설정 (0.5도)
     private static final BigDecimal TEMP_CHANGE = BigDecimal.valueOf(0.5);
-    
+
     @Transactional(readOnly = true)
     public DiaryDetailResponse getDiaryDetail(Long userId, String dateStr) {
         // 1. 날짜 파싱
