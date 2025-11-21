@@ -55,6 +55,10 @@ public class Diary {
     @Builder.Default
     private List<DiaryFile> diaryFiles = new ArrayList<>();
 
+    public void updateDrawUrl(String drawUrl) {
+        this.drawUrl = drawUrl;
+    }
+
     public void updateWriteDiary(String writeDiary) {
         this.writeDiary = writeDiary;
     }

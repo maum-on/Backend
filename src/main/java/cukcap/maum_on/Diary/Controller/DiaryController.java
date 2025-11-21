@@ -108,4 +108,40 @@ public class DiaryController {
                     .body(Map.of("code", 500, "message", "파일 처리 실패: " + e.getMessage()));
         }
     }
+
+    @PostMapping(value = "/draw/{userId}/{date}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> uploadDraw(
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
+            @PathVariable Long userId,
+            @PathVariable String date,
+            @RequestPart(value = "file") MultipartFile file // 프론트에서 'file' 키로 보낸 이미지
+    ) {
+        // 1. 본인 확인
+        if (!principalDetails.getId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("code", 403, "message", "권한이 없습니다."));
+        }
+
+        try {
+            // 2. 서비스 호출 (그림 저장)
+            String savedUrl = diaryService.saveDraw(userId, date, file);
+
+            // 3. 응답
+            Map<String, Object> response = new HashMap<>();
+            response.put("code", 200);
+            response.put("message", "그림 저장 성공");
+            response.put("drawUrl", savedUrl); // 저장된 경로 반환
+
+            return ResponseEntity.ok(response);
+
+        } catch (IOException e) {
+            log.error("그림 파일 저장 실패", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("code", 500, "message", "서버 저장소 오류"));
+        } catch (Exception e) {
+            log.error("그림 등록 중 오류", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("code", 400, "message", e.getMessage()));
+        }
+    }
 }
