@@ -1,5 +1,6 @@
 package cukcap.maum_on.Diary.Service;
 
+import cukcap.maum_on.Diary.Dto.AiResponse;
 import cukcap.maum_on.Diary.Reposiroty.DiaryFileRepository;
 import cukcap.maum_on.Home.Dto.DiaryDetailResponse;
 import cukcap.maum_on.Home.Entity.Diary;
@@ -29,6 +30,7 @@ public class DiaryService {
     private final DiaryRepository diaryRepository;
     private final DiaryFileRepository diaryFileRepository;
     private final UserRepository userRepository;
+    private final AiService aiService;
 
     // 파일 저장 경로 (프로젝트 루트/uploads/)
     private static final String UPLOAD_DIR = System.getProperty("user.dir") + "/uploads/";
@@ -65,28 +67,39 @@ public class DiaryService {
 
     @Transactional
     public Long saveDiary(Long userId, String dateStr, String text, MultipartFile audioFile) throws IOException {
-        // 1. 날짜 파싱
+        // 1 ~ 3. 날짜/유저 조회 및 일기 생성 (기존 코드 유지)
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
         LocalDate date = LocalDate.parse(dateStr, formatter);
-
-        // 2. 사용자 조회
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다. ID: " + userId));
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        // 3. 일기 조회 또는 생성 (Upsert: 있으면 가져오고 없으면 새로 만듦)
         Diary diary = diaryRepository.findByUserIdAndDiaryDate(userId, date)
                 .orElse(Diary.builder()
                         .user(user)
                         .diaryDate(date)
                         .build());
 
-        // 4. 텍스트 내용 업데이트
         diary.updateWriteDiary(text);
 
-        // 5. 일기 저장 (insert or update)
+        // 4. AI 분석 요청 및 결과 적용 [수정됨]
+        if (text != null && !text.isEmpty()) {
+            AiResponse aiResult = aiService.analyzeDiaryText(userId, dateStr, text);
+
+            if (aiResult != null) {
+                // DTO 수정에 맞춰 데이터 추출 방식 변경
+                String extractedEmotion = aiResult.getPrimaryEmotion(); // emotion 리스트의 첫 번째 값
+                String extractedReply = aiResult.getReply();            // reply_normal 값
+
+                log.info("AI 응답 수신 완료: 감정={}, 답장={}", extractedEmotion, extractedReply);
+
+                diary.updateEmotion(extractedEmotion);
+                diary.updateAiReply(extractedReply);
+            }
+        }
+
+        // 5 ~ 6. DB 저장 및 오디오 파일 처리 (기존 코드 유지)
         Diary savedDiary = diaryRepository.save(diary);
 
-        // 6. 오디오 파일 처리 (파일이 있을 경우에만)
         if (audioFile != null && !audioFile.isEmpty()) {
             saveFile(savedDiary, audioFile, "audio");
         }

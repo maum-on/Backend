@@ -62,4 +62,12 @@ public class Diary {
     public void updateWriteDiary(String writeDiary) {
         this.writeDiary = writeDiary;
     }
+
+    public void updateEmotion(String emotion) {
+        this.emotion = emotion;
+    }
+
+    public void updateAiReply(String aiReply) {
+        this.aiReply = aiReply;
+    }
 }

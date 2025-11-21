@@ -1,6 +1,8 @@
 package cukcap.maum_on.Diary.Controller;
 
+import cukcap.maum_on.Diary.Dto.AiResponse;
 import cukcap.maum_on.Diary.Dto.UnifiedChatResponse;
+import cukcap.maum_on.Diary.Service.AiService;
 import cukcap.maum_on.Diary.Service.DiaryService;
 import cukcap.maum_on.Diary.Service.FileProcessingService;
 import cukcap.maum_on.OAuth.Entity.PrincipalDetails;
@@ -26,6 +28,7 @@ public class DiaryController {
 
     private final DiaryService diaryService;
     private final FileProcessingService fileProcessingService;
+    private final AiService aiService;
 
     @PostMapping(value = "/write/{userId}/{date}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> writeDiary(
@@ -73,39 +76,42 @@ public class DiaryController {
             @RequestPart(value = "kakao", required = false) MultipartFile kakaoFile,
             @RequestPart(value = "insta", required = false) MultipartFile instaFile
     ) {
-        // 1. 권한 확인
+        // 1. 권한 확인 (기존 동일)
         if (!principalDetails.getId().equals(userId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("code", 403, "message", "권한이 없습니다."));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("code", 403, "message", "권한 없음"));
         }
 
-        Map<String, Object> responseData = new HashMap<>();
-        List<UnifiedChatResponse> processedChats = new ArrayList<>();
-
         try {
-            // 2. 카카오 파일 처리 (있다면)
+            List<UnifiedChatResponse> processedChats = new ArrayList<>();
+
+            // 2. 파일 파싱 (기존 동일)
             if (kakaoFile != null && !kakaoFile.isEmpty()) {
-                UnifiedChatResponse kakaoChat = fileProcessingService.processKakaoFile(kakaoFile);
-                processedChats.add(kakaoChat);
+                processedChats.add(fileProcessingService.processKakaoFile(kakaoFile));
             }
-
-            // 3. 인스타 파일 처리 (있다면)
             if (instaFile != null && !instaFile.isEmpty()) {
-                UnifiedChatResponse instaChat = fileProcessingService.processInstaFile(instaFile);
-                processedChats.add(instaChat);
+                processedChats.add(fileProcessingService.processInstaFile(instaFile));
             }
 
-            // 4. 결과 응답 구성 (AI에게 보낼 데이터 리스트)
+            // 3. AI 서버로 파싱된 JSON 전송 및 분석 요청
+            AiResponse aiResult = null;
+            if (!processedChats.isEmpty()) {
+                aiResult = aiService.analyzeChatFile(processedChats);
+                // 필요하다면 여기서 aiResult(감정, 요약 등)를 DB에 저장하는 로직 추가 가능
+            }
+
+            // 4. 응답 생성
+            Map<String, Object> responseData = new HashMap<>();
             responseData.put("code", 200);
-            responseData.put("message", "파일 처리 완료 (DB 저장 안 함)");
-            responseData.put("data", processedChats); // 이 data 필드 안에 변환된 JSON 객체들이 들어감
+            responseData.put("message", "파일 분석 완료");
+            responseData.put("chat_data", processedChats); // 원본 파싱 데이터 (확인용)
+            responseData.put("ai_analysis", aiResult);     // AI 분석 결과 (감정, 요약 등)
 
             return ResponseEntity.ok(responseData);
 
         } catch (Exception e) {
-            log.error("파일 처리 중 오류 발생", e);
+            log.error("파일 처리 중 오류", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("code", 500, "message", "파일 처리 실패: " + e.getMessage()));
+                    .body(Map.of("code", 500, "message", "처리 실패: " + e.getMessage()));
         }
     }
 
