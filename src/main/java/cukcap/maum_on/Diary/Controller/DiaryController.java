@@ -1,6 +1,5 @@
 package cukcap.maum_on.Diary.Controller;
 
-import cukcap.maum_on.Diary.Dto.AiResponse;
 import cukcap.maum_on.Diary.Dto.UnifiedChatResponse;
 import cukcap.maum_on.Diary.Service.AiService;
 import cukcap.maum_on.Diary.Service.DiaryService;
@@ -16,9 +15,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -36,7 +35,7 @@ public class DiaryController {
             @PathVariable Long userId,
             @PathVariable String date, // yyyy.MM.dd
             @RequestParam("text") String text, // 프론트에서 'text' 키로 보낸 일기 내용
-            @RequestPart(value = "file", required = false) MultipartFile file // 프론트에서 'file' 키로 보낸 파일 (선택)
+            @RequestPart(value = "file", required = false) MultipartFile file
     ) {
         // 1. 본인 확인
         if (!principalDetails.getId().equals(userId)) {
@@ -72,46 +71,55 @@ public class DiaryController {
     public ResponseEntity<Map<String, Object>> uploadChatFiles(
             @AuthenticationPrincipal PrincipalDetails principalDetails,
             @PathVariable Long userId,
-            @PathVariable String date,
+            @PathVariable("date") String dateStr,
             @RequestPart(value = "kakao", required = false) MultipartFile kakaoFile,
             @RequestPart(value = "insta", required = false) MultipartFile instaFile
     ) {
-        // 1. 권한 확인 (기존 동일)
         if (!principalDetails.getId().equals(userId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("code", 403, "message", "권한 없음"));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("code", 403, "message", "권한이 없습니다."));
         }
 
         try {
-            List<UnifiedChatResponse> processedChats = new ArrayList<>();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+            LocalDate targetDate = LocalDate.parse(dateStr, formatter);
 
-            // 2. 파일 파싱 (기존 동일)
+            UnifiedChatResponse filteredChat = null;
+
             if (kakaoFile != null && !kakaoFile.isEmpty()) {
-                processedChats.add(fileProcessingService.processKakaoFile(kakaoFile));
-            }
-            if (instaFile != null && !instaFile.isEmpty()) {
-                processedChats.add(fileProcessingService.processInstaFile(instaFile));
-            }
-
-            // 3. AI 서버로 파싱된 JSON 전송 및 분석 요청
-            AiResponse aiResult = null;
-            if (!processedChats.isEmpty()) {
-                aiResult = aiService.analyzeChatFile(processedChats);
-                // 필요하다면 여기서 aiResult(감정, 요약 등)를 DB에 저장하는 로직 추가 가능
+                filteredChat = fileProcessingService.processKakaoFile(kakaoFile, targetDate);
+            } else if (instaFile != null && !instaFile.isEmpty()) {
+                filteredChat = fileProcessingService.processInstaFile(instaFile, targetDate);
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("message", "업로드할 파일이 없습니다."));
             }
 
-            // 4. 응답 생성
-            Map<String, Object> responseData = new HashMap<>();
-            responseData.put("code", 200);
-            responseData.put("message", "파일 분석 완료");
-            responseData.put("chat_data", processedChats); // 원본 파싱 데이터 (확인용)
-            responseData.put("ai_analysis", aiResult);     // AI 분석 결과 (감정, 요약 등)
+            if (filteredChat.getMessages().isEmpty()) {
+                return ResponseEntity.ok(Map.of("code", 200, "message", "해당 날짜의 대화 내용이 없습니다."));
+            }
 
-            return ResponseEntity.ok(responseData);
+            String threadIdVal = String.valueOf(userId);
+            filteredChat.setThreadId(threadIdVal);
+            log.info("Setting thread_id for AI: {}", filteredChat.getThreadId());
+
+            // DTO(JSON 내부)에 thread_id 값을 넣어줍니다.
+            filteredChat.setThreadId(String.valueOf(userId));
+
+            // AI로 전송 (me_hint만 전달)
+            String meHint = principalDetails.getUser().getNickname();
+            Map<String, Object> aiResult = aiService.chatToDiary(filteredChat, meHint);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("code", 200);
+            response.put("message", "채팅 분석 성공");
+            response.put("data", aiResult);
+
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             log.error("파일 처리 중 오류", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("code", 500, "message", "처리 실패: " + e.getMessage()));
+                    .body(Map.of("code", 500, "message", "오류: " + e.getMessage()));
         }
     }
 

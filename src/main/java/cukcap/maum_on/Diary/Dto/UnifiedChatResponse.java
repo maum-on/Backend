@@ -2,6 +2,7 @@ package cukcap.maum_on.Diary.Dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,7 +16,10 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true) // 정의되지 않은 필드는 무시
+@JsonPropertyOrder({"thread_id", "title", "participants", "messages", "is_still_participant", "thread_path", "magic_words"})
 public class UnifiedChatResponse {
+    @JsonProperty("thread_id")
+    private String threadId;
 
     private String title;
 
