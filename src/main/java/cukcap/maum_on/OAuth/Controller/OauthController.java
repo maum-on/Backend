@@ -45,13 +45,12 @@ public class OauthController {
                 + "&client_id=" + clientId
                 + "&redirect_uri=" + redirectUri;
 
-        // 브라우저를 카카오 로그인 페이지로 리다이렉트
         return "redirect:" + loginUrl;
     }
 
     @GetMapping("/auth/kakao/callback")
-    @ResponseBody // JSON 응답을 위해 @Controller 대신 @RestController를 사용하거나 @ResponseBody를 붙입니다.
-    public ResponseEntity<Map<String, String>> kakaoCallback(@RequestParam("code") String code) {
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> kakaoCallback(@RequestParam("code") String code) {
         try {
             // 1. 사용자 정보 처리 및 User 객체 반환
             Map<String, Object> userInfo = kakaoService.getUserInfo(kakaoService.getAccessToken(code));
@@ -60,18 +59,21 @@ public class OauthController {
             // 2. JWT 토큰 생성
             String jwtToken = tokenProvider.createToken(loggedInUser);
 
-            // 3. 토큰을 JSON 형태로 응답
-            Map<String, String> response = new HashMap<>();
-            response.put("accessToken", jwtToken);
-            response.put("message", "카카오 로그인 성공 및 토큰 발급");
+            // 3. Response Body 구성 (여기가 중요!)
+            Map<String, Object> response = new HashMap<>();
+            response.put("code", 200);
+            response.put("message", "카카오 로그인 성공");
 
-            // 클라이언트는 이 응답에서 토큰을 추출하여 다음 요청부터 Header에 넣어 보냅니다.
+            response.put("accessToken", jwtToken);       // JWT 토큰
+            response.put("userId", loggedInUser.getId()); // 사용자 ID (홈 화면 조회 등에 사용)
+
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             log.error("카카오 로그인 처리 실패", e);
 
-            Map<String, String> errorResponse = new HashMap<>();
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("code", 401);
             errorResponse.put("message", "로그인 처리 중 오류 발생");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
         }
@@ -81,14 +83,12 @@ public class OauthController {
     @ResponseBody
     public ResponseEntity<Map<String, String>> logout(@AuthenticationPrincipal PrincipalDetails principalDetails) {
         if (principalDetails != null) {
-            // DB에서 User 조회하여 kakaoId 획득
             Long kakaoId = principalDetails.getUser().getKakaoId();
-            // 카카오 강제 로그아웃 처리
             kakaoService.kakaoLogout(kakaoId);
         }
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "로그아웃 성공. 클라이언트에서 토큰을 삭제해주세요.");
+        response.put("message", "로그아웃 성공");
         return ResponseEntity.ok(response);
     }
 
@@ -100,15 +100,11 @@ public class OauthController {
         }
 
         Long userId = principalDetails.getId();
-
-        // 1. DB 데이터 삭제 및 Kakao ID 반환
         Long kakaoId = userService.deleteUserAccount(userId);
-
-        // 2. 카카오 연결 끊기
         kakaoService.kakaoUnlink(kakaoId);
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "회원 탈퇴 및 카카오 연결 끊기 완료");
+        response.put("message", "회원 탈퇴 완료");
         return ResponseEntity.ok(response);
     }
 }

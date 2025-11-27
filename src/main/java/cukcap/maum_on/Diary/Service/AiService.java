@@ -11,9 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,7 +29,7 @@ public class AiService {
     private final String CHAT_TO_DIARY_PATH = "/chat-diary/chat-to-diary";
 
     private final ObjectMapper objectMapper;
-    
+
     public AiResponse analyzeDiaryText(Long userId, String date, String text) {
         String url = AI_BASE_URL + DIARY_REPLY_PATH;
 
@@ -117,6 +115,7 @@ public class AiService {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", fileResource);
             body.add("me_hint", meHint);
+            body.add("thread_id", chatData.getThreadId());
 
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
