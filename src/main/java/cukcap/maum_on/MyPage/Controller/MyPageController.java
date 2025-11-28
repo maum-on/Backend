@@ -20,7 +20,7 @@ public class MyPageController {
 
     private final MyPageService myPageService;
 
-    @GetMapping("/api/mypage/{userId}")
+    @GetMapping("/mypage/{userId}")
     public ResponseEntity<Map<String, Object>> getMyPage(
             @AuthenticationPrincipal PrincipalDetails principalDetails,
             @PathVariable Long userId
