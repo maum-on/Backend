@@ -12,8 +12,8 @@ import java.util.Optional;
 public interface DiaryRepository extends JpaRepository<Diary, Long> {
 
     List<Diary> findAllByUserIdAndDiaryDateBetween(Long userId, LocalDate startDate, LocalDate endDate);
-
     Optional<Diary> findByUserIdAndDiaryDate(Long userId, LocalDate diaryDate);
     List<Diary> findAllByUserId(Long userId);
     void deleteAllByUserId(Long userId);
+    long countByUserId(Long userId);
 }
