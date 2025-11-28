@@ -24,7 +24,7 @@ import java.util.Map;
 public class AiService {
 
     // AI 서버 기본 주소 (Koyeb)
-    private final String AI_BASE_URL = "https://automatic-loraine-gaeun6707-a9fd2f7a.koyeb.app";
+    private final String AI_BASE_URL = "http://54.79.20.218:8000";
     private final String DIARY_REPLY_PATH = "/diary/diary/reply";
     private final String CHAT_TO_DIARY_PATH = "/chat-diary/chat-to-diary";
 
