@@ -1,5 +1,6 @@
 package cukcap.maum_on.Diary.Controller;
 
+import cukcap.maum_on.Diary.Dto.SttResponse;
 import cukcap.maum_on.Diary.Dto.UnifiedChatResponse;
 import cukcap.maum_on.Diary.Service.AiService;
 import cukcap.maum_on.Diary.Service.DiaryService;
@@ -62,6 +63,44 @@ public class DiaryController {
             log.error("일기 저장 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("code", 400, "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "/stt/{userId}/{date}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> uploadVoiceDiary(
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
+            @PathVariable Long userId,
+            @PathVariable String date,
+            @RequestPart("audio") MultipartFile audioFile // "audio" 키로 파일 받음
+    ) {
+        // 1. 권한 확인
+        if (!principalDetails.getId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("code", 403, "message", "권한이 없습니다."));
+        }
+
+        if (audioFile == null || audioFile.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("code", 400, "message", "음성 파일이 없습니다."));
+        }
+
+        try {
+            // 2. AI 서비스 호출 (STT 변환)
+            // (여기서는 DB 저장을 안 하고 변환된 텍스트만 프론트로 돌려줍니다.)
+            SttResponse sttResult = aiService.convertVoiceToText(audioFile);
+
+            // 3. 응답 생성
+            Map<String, Object> response = new HashMap<>();
+            response.put("code", 200);
+            response.put("message", "음성 변환 성공");
+            response.put("data", sttResult); // transcript, diary 포함
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("STT 처리 중 오류", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("code", 500, "message", "음성 변환 실패: " + e.getMessage()));
         }
     }
 
