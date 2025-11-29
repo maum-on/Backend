@@ -1,7 +1,6 @@
 package cukcap.maum_on.Config;
 
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import lombok.RequiredArgsConstructor;
@@ -31,9 +30,7 @@ public class S3Service {
         metadata.setContentType(file.getContentType());
         metadata.setContentLength(file.getSize());
 
-        // S3에 업로드
-        amazonS3Client.putObject(new PutObjectRequest(bucket, fileName, file.getInputStream(), metadata)
-                .withCannedAcl(CannedAccessControlList.PublicRead)); // 공개 읽기 권한
+        amazonS3Client.putObject(new PutObjectRequest(bucket, fileName, file.getInputStream(), metadata));
 
         // 업로드된 파일의 URL 반환
         return amazonS3Client.getUrl(bucket, fileName).toString();

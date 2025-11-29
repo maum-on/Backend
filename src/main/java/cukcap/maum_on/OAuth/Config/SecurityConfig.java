@@ -36,7 +36,6 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/auth/kakao/**").permitAll()
-                        .requestMatchers("/draw/**", "/files/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(

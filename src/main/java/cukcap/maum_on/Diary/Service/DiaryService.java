@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import cukcap.maum_on.Config.S3Service;
 import cukcap.maum_on.Diary.Dto.AiResponse;
+import cukcap.maum_on.Diary.Dto.UnifiedChatResponse;
 import cukcap.maum_on.Diary.Reposiroty.DiaryFileRepository;
 import cukcap.maum_on.Home.Dto.DiaryDetailResponse;
 import cukcap.maum_on.Home.Entity.Diary;
@@ -41,6 +42,7 @@ public class DiaryService {
     private final AiService aiService;
     private final S3Service s3Service;
     private final ObjectMapper objectMapper; // JSON 변환용
+    private final FileProcessingService fileProcessingService;
 
     // 감정별 온도 변화량 설정 (0.5도)
     private static final BigDecimal TEMP_CHANGE = BigDecimal.valueOf(0.5);
@@ -136,6 +138,65 @@ public class DiaryService {
         }
 
         return savedDiary.getId();
+    }
+
+    @Transactional
+    public void saveChatFile(Long userId, String dateStr, MultipartFile file, String meHint) throws IOException {
+        // 1. 유저 및 날짜 확인
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+        LocalDate date = LocalDate.parse(dateStr, formatter);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        // 2. 일기(Diary) 조회 혹은 생성 (부모 엔티티가 있어야 파일 저장이 가능)
+        Diary diary = diaryRepository.findByUserIdAndDiaryDate(userId, date)
+                .orElseGet(() -> {
+                    Diary newDiary = Diary.builder()
+                            .user(user)
+                            .diaryDate(date)
+                            .emotion("normal") // 기본값
+                            .build();
+                    return diaryRepository.save(newDiary);
+                });
+
+        // 3. 파일 파싱 (UnifiedChatResponse 생성)
+        UnifiedChatResponse chatData;
+        String fileName = file.getOriginalFilename();
+
+        if (fileName != null && fileName.toLowerCase().endsWith(".json")) {
+            // 인스타그램 JSON
+            chatData = fileProcessingService.processInstaFile(file, date);
+        } else {
+            // 카카오톡 TXT (기본값으로 간주)
+            chatData = fileProcessingService.processKakaoFile(file, date);
+        }
+
+        // 파싱된 메시지가 없으면 예외 처리 또는 로그
+        if (chatData.getMessages().isEmpty()) {
+            throw new IllegalArgumentException("해당 날짜의 채팅 내역이 파일에 존재하지 않습니다.");
+        }
+
+        // 4. AI 서버로 보내서 요약 받기
+        // meHint가 없으면 유저 닉네임을 힌트로 사용 (선택 사항)
+        String hint = (meHint != null && !meHint.isEmpty()) ? meHint : user.getNickname();
+        String summary = aiService.summarizeChatLog(chatData, hint);
+
+        log.info("AI 요약 완료: {}", summary);
+
+        // 5. 원본 파일 S3 업로드
+        String s3Url = s3Service.uploadFile(file);
+
+        // 6. DB 저장 (DiaryFile - summaryText에 요약 내용 저장)
+        DiaryFile diaryFile = DiaryFile.builder()
+                .diary(diary)
+                .fileType("json") // 파싱 후에는 JSON 구조로 취급하므로 json으로 통일하거나 origin type을 써도 됨
+                .fileUrl(s3Url)
+                .fileName(fileName)
+                .summaryText(summary) // [핵심] AI가 준 요약 저장
+                .build();
+
+        diaryFileRepository.save(diaryFile);
     }
 
     @Transactional

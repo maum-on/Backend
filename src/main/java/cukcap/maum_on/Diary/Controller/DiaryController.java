@@ -15,8 +15,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -67,61 +65,49 @@ public class DiaryController {
         }
     }
 
-    @PostMapping(value = "/files/{userId}/{date}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Map<String, Object>> uploadChatFiles(
+    @PostMapping(value = "/files/{user_id}/{date}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> uploadChat(
             @AuthenticationPrincipal PrincipalDetails principalDetails,
-            @PathVariable Long userId,
-            @PathVariable("date") String dateStr,
-            @RequestPart(value = "kakao", required = false) MultipartFile kakaoFile,
-            @RequestPart(value = "insta", required = false) MultipartFile instaFile
+            @PathVariable("user_id") Long userId,
+            @PathVariable("date") String date,
+
+            @RequestPart(value = "file") MultipartFile file,
+            @RequestParam(value = "me_hint", required = false) String meHint
     ) {
+        // 0. SecurityConfig 체크 (로그인이 안 된 상태로 오면 principalDetails가 null일 수 있음)
+        if (principalDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("code", 401, "message", "로그인이 필요합니다."));
+        }
+
+        // 1. 본인 확인 (로그인한 사람 vs URL의 user_id)
         if (!principalDetails.getId().equals(userId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("code", 403, "message", "권한이 없습니다."));
+                    .body(Map.of("code", 403, "message", "권한이 없습니다. 본인의 파일만 업로드 가능합니다."));
         }
 
         try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
-            LocalDate targetDate = LocalDate.parse(dateStr, formatter);
+            // 2. 서비스 호출
+            diaryService.saveChatFile(userId, date, file, meHint);
 
-            UnifiedChatResponse filteredChat = null;
-
-            if (kakaoFile != null && !kakaoFile.isEmpty()) {
-                filteredChat = fileProcessingService.processKakaoFile(kakaoFile, targetDate);
-            } else if (instaFile != null && !instaFile.isEmpty()) {
-                filteredChat = fileProcessingService.processInstaFile(instaFile, targetDate);
-            } else {
-                return ResponseEntity.badRequest().body(Map.of("message", "업로드할 파일이 없습니다."));
-            }
-
-            if (filteredChat.getMessages().isEmpty()) {
-                return ResponseEntity.ok(Map.of("code", 200, "message", "해당 날짜의 대화 내용이 없습니다."));
-            }
-
-            String threadIdVal = String.valueOf(userId);
-            filteredChat.setThreadId(threadIdVal);
-            log.info("Setting thread_id for AI: {}", filteredChat.getThreadId());
-
-            // DTO(JSON 내부)에 thread_id 값을 넣어줍니다.
-            filteredChat.setThreadId(String.valueOf(userId));
-
-            // AI로 전송 (me_hint만 전달)
-            String meHint = principalDetails.getUser().getNickname();
-            Map<String, Object> aiResult = aiService.chatToDiary(filteredChat, meHint);
-
+            // 3. 응답
             Map<String, Object> response = new HashMap<>();
             response.put("code", 200);
-            response.put("message", "채팅 분석 성공");
-            response.put("data", aiResult);
+            response.put("message", "파일 등록 성공");
 
             return ResponseEntity.ok(response);
 
+        } catch (IllegalArgumentException e) {
+            log.warn("파일 업로드 요청 오류: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("code", 400, "message", e.getMessage()));
         } catch (Exception e) {
-            log.error("파일 처리 중 오류", e);
+            log.error("파일 업로드 중 서버 오류", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("code", 500, "message", "오류: " + e.getMessage()));
+                    .body(Map.of("code", 500, "message", "서버 오류: " + e.getMessage()));
         }
     }
+
 
     @PostMapping(value = "/draw/{userId}/{date}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> uploadDraw(
