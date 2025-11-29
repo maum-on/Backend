@@ -180,7 +180,31 @@ public class DiaryService {
         // 4. AI 서버로 보내서 요약 받기
         // meHint가 없으면 유저 닉네임을 힌트로 사용 (선택 사항)
         String hint = (meHint != null && !meHint.isEmpty()) ? meHint : user.getNickname();
-        String summary = aiService.summarizeChatLog(chatData, hint);
+
+        // 1. AI 호출 (Map 반환)
+        Map<String, Object> aiResultMap = aiService.chatToDiary(chatData, hint);
+
+        // 2. Map에서 요약 내용 추출 (AI 서버 응답 키값에 따라 수정 필요)
+        // 예: AI가 {"summary": "요약내용..."} 또는 {"result": "..."} 등을 줄 것입니다.
+        // 현재 명확하지 않으므로 전체를 문자열로 저장하거나, 특정 키를 get 해야 합니다.
+        String summary = "";
+
+        if (aiResultMap != null) {
+            // (1) 만약 AI가 'summary'라는 키로 준다면:
+            if (aiResultMap.containsKey("summary")) {
+                summary = String.valueOf(aiResultMap.get("summary"));
+            }
+            // (2) 만약 'reply'라는 키로 준다면:
+            else if (aiResultMap.containsKey("reply")) {
+                summary = String.valueOf(aiResultMap.get("reply"));
+            }
+            // (3) 구조를 모를 땐 전체를 저장 (디버깅용)
+            else {
+                summary = aiResultMap.toString();
+            }
+        } else {
+            summary = "AI 요약 실패 (응답 없음)";
+        }
 
         log.info("AI 요약 완료: {}", summary);
 

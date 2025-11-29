@@ -2,7 +2,7 @@ package cukcap.maum_on.Diary.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import cukcap.maum_on.Diary.Dto.AiResponse;
-import cukcap.maum_on.Diary.Dto.UnifiedChatResponse;
+import cukcap.maum_on.Diary.Dto.UnifiedChatResponse; // [중요] UnifiedChatResponse import 확인
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -23,13 +23,14 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AiService {
 
-    // AI 서버 기본 주소 (Koyeb)
+    // AI 서버 기본 주소
     private final String AI_BASE_URL = "http://3.107.0.206:8000";
     private final String DIARY_REPLY_PATH = "/diary/diary/reply";
-    private final String CHAT_SUMMARY_PATH = "/chat-diary/chat-to-diary";
+    private final String CHAT_TO_DIARY_PATH = "/chat-diary/chat-to-diary";
 
     private final ObjectMapper objectMapper;
 
+    // 1. 일기 분석
     public AiResponse analyzeDiaryText(Long userId, String date, String text) {
         String url = AI_BASE_URL + DIARY_REPLY_PATH;
 
@@ -39,77 +40,91 @@ public class AiService {
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("text", text);
-        requestBody.put("user_id", String.valueOf(userId)); // Long -> String 변환
+        requestBody.put("user_id", String.valueOf(userId));
         requestBody.put("date", date);
-        requestBody.put("meta", new HashMap<>()); // 빈 객체라도 보내는 게 안전함
+        requestBody.put("meta", new HashMap<>());
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
         try {
             log.info("AI 요청 Body: {}", requestBody);
-
             ResponseEntity<AiResponse> response = restTemplate.postForEntity(url, entity, AiResponse.class);
             return response.getBody();
-
         } catch (Exception e) {
             log.error("AI 일기 분석 요청 실패. URL: {}, Error: {}", url, e.getMessage());
-
-            // 실패 시 기본값 생성 (DTO 구조 변경 반영)
             AiResponse.Analysis fallbackAnalysis = new AiResponse.Analysis();
-            fallbackAnalysis.setEmotions(Collections.singletonList("normal")); // 기본 감정 설정
-
+            fallbackAnalysis.setEmotions(Collections.singletonList("normal"));
             return AiResponse.builder()
-                    .reply("AI 서버 연결에 실패하여 답장을 가져오지 못했어요.") // reply_normal 대응
+                    .reply("AI 서버 연결에 실패하여 답장을 가져오지 못했어요.")
                     .analysis(fallbackAnalysis)
                     .build();
         }
     }
 
-    public String summarizeChatLog(UnifiedChatResponse chatData, String meHint) {
-        String url = AI_BASE_URL + CHAT_SUMMARY_PATH;
+    // 2. 채팅 파일 분석 (UnifiedChatResponse 리스트 전송)
+    public AiResponse analyzeChatFile(List<UnifiedChatResponse> chatData) {
+        String url = AI_BASE_URL + "/chat/analyze"; // (경로 확인 필요)
+
         RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<List<UnifiedChatResponse>> entity = new HttpEntity<>(chatData, headers);
 
         try {
-            // 1. DTO -> JSON String -> Byte Array 변환 (파일처럼 보내기 위해)
-            String jsonContent = objectMapper.writeValueAsString(chatData);
-            ByteArrayResource fileResource = new ByteArrayResource(jsonContent.getBytes(StandardCharsets.UTF_8)) {
+            ResponseEntity<AiResponse> response = restTemplate.postForEntity(url, entity, AiResponse.class);
+            return response.getBody();
+        } catch (Exception e) {
+            log.error("AI 채팅 분석 요청 실패: {}", e.getMessage());
+            AiResponse.Analysis fallbackAnalysis = new AiResponse.Analysis();
+            fallbackAnalysis.setEmotions(Collections.singletonList("normal"));
+            fallbackAnalysis.setSummary("채팅 분석에 실패했습니다.");
+            return AiResponse.builder()
+                    .analysis(fallbackAnalysis)
+                    .build();
+        }
+    }
+
+    // 3. 채팅 -> 일기 변환 (파일 전송)
+    // [중요] 파라미터 타입이 UnifiedChatResponse 이어야 합니다!
+    public Map<String, Object> chatToDiary(UnifiedChatResponse chatData, String meHint) {
+        String url = AI_BASE_URL + CHAT_TO_DIARY_PATH;
+
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        // (필요 시) User-Agent 추가
+        headers.add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+
+        try {
+            // DTO -> JSON 변환
+            String jsonString = objectMapper.writeValueAsString(chatData);
+            log.info("Sending JSON to AI: {}", jsonString);
+            byte[] fileContent = jsonString.getBytes(StandardCharsets.UTF_8);
+
+            ByteArrayResource fileResource = new ByteArrayResource(fileContent) {
                 @Override
                 public String getFilename() {
-                    return "chat_log.json"; // 파일명 지정
+                    return "filtered_chat.json";
                 }
             };
 
-            // 2. Header 설정 (Multipart)
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-
-            // 3. Body 설정
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", fileResource); // AI 서버가 요구하는 key: "file"
-            if (meHint != null && !meHint.isEmpty()) {
-                body.add("me_hint", meHint); // AI 서버가 요구하는 key: "me_hint"
-            }
+            body.add("file", fileResource);
+            body.add("me_hint", meHint);
+
+            // [중요] thread_id를 Form Data로 추가
+            body.add("thread_id", chatData.getThreadId());
 
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-            // 4. 요청 및 응답 (String 반환)
-            log.info("AI 채팅 요약 요청 시작. URL: {}", url);
-            ResponseEntity<String> response = restTemplate.postForEntity(url, requestEntity, String.class);
-
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                // 응답 값이 따옴표로 감싸진 JSON String일 수 있으므로 처리 (예: "요약내용")
-                String result = response.getBody();
-                // 혹시 앞뒤에 따옴표가 있다면 제거 (선택 사항)
-                if (result.startsWith("\"") && result.endsWith("\"")) {
-                    result = result.substring(1, result.length() - 1);
-                }
-                return result;
-            }
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
+            return response.getBody();
 
         } catch (Exception e) {
-            log.error("AI 채팅 요약 요청 실패. Error: {}", e.getMessage());
+            log.error("AI 채팅 분석 요청 실패: {}", e.getMessage());
+            throw new RuntimeException("AI 서버 통신 오류: " + e.getMessage());
         }
-
-        return "채팅 요약에 실패했습니다."; // 실패 시 기본 문구
     }
 }
