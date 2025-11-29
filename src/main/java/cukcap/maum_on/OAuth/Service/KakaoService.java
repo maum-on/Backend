@@ -79,55 +79,36 @@ public class KakaoService {
     // 3. 회원가입/로그인 처리
     public User kakaoLoginProcess(Map<String, Object> userInfo) {
         Long kakaoId = (Long) userInfo.get("id");
-
-        // 1. kakao_account가 null인지 확인 (NullPointerException 방지)
         Map<String, Object> kakaoAccount = (Map<String, Object>) userInfo.get("kakao_account");
-        if (kakaoAccount == null) {
-            log.error("카카오 사용자 정보에 kakao_account가 누락되었습니다. 동의 항목 설정을 확인하세요.");
-            // 처리할 수 없는 정보이므로 예외를 발생시키거나 기본값으로 처리해야 합니다.
-            throw new RuntimeException("필수 사용자 정보 누락 (kakao_account)");
-        }
-
-        // 2. profile 정보도 null 체크 (NullPointerException 방지)
         Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
-        if (profile == null) {
-            log.error("카카오 사용자 정보에 profile이 누락되었습니다. 동의 항목 설정을 확인하세요.");
-            throw new RuntimeException("필수 사용자 정보 누락 (profile)");
-        }
 
-        // 이메일은 동의하지 않을 수 있으므로 null 처리 필요
-        // 3. email/nickname은 Optional 필드이므로 null 체크 후 사용
         String email = (String) kakaoAccount.get("email");
-
-        // 닉네임은 필수 정보라고 가정했으므로, 만약 profile에서 null이 나오면 문제가 됩니다.
         String nickname = (String) profile.get("nickname");
 
-        // 닉네임이 null이거나 비어있으면 기본값 처리 (필수 항목임에도 누락 시)
         if (nickname == null || nickname.isEmpty()) {
-            nickname = "KakaoUser_" + kakaoId; // 기본 닉네임 설정
+            nickname = "KakaoUser_" + kakaoId;
         }
-
-        // ... (이하 기존 로직 유지)
 
         Optional<User> optionalUser = userRepository.findByKakaoId(kakaoId);
         User user;
 
         if (optionalUser.isPresent()) {
-            // 로그인 (정보 업데이트)
             user = optionalUser.get();
             user.updateNickname(nickname);
-            userRepository.save(user);
+            // [수정] 저장된 객체를 다시 변수에 할당 (확실한 ID 보장)
+            user = userRepository.save(user);
         } else {
-            // 회원가입
             user = User.builder()
                     .kakaoId(kakaoId)
                     .email(email)
                     .nickname(nickname)
                     .role("ROLE_USER")
                     .build();
-            userRepository.save(user);
+            // [수정] 저장 후 생성된 ID가 담긴 객체를 다시 할당
+            user = userRepository.save(user);
         }
-        return user;
+
+        return user; // 이제 user.getId()는 무조건 DB와 일치함
     }
 
     // 4. 카카오 로그아웃 (Admin Key 사용)
