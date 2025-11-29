@@ -14,6 +14,7 @@ public class DiaryDetailResponse {
     private String content;    // 일기 내용 (write_diary)
     private String drawUrl;    // 그림 URL
     private String aiReply;    // AI 답장
+    private String aiDrawReply;
     private List<FileDto> files; // 첨부 파일 목록
 
     @Data

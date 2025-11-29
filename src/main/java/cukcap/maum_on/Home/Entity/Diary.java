@@ -46,6 +46,9 @@ public class Diary {
     @Column(name = "ai_reply", columnDefinition = "TEXT")
     private String aiReply;
 
+    @Column(name = "ai_draw_reply", columnDefinition = "TEXT")
+    private String aiDrawReply;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -69,5 +72,8 @@ public class Diary {
 
     public void updateAiReply(String aiReply) {
         this.aiReply = aiReply;
+    }
+    public void updateAiDrawReply(String aiDrawReply) {
+        this.aiDrawReply = aiDrawReply;
     }
 }

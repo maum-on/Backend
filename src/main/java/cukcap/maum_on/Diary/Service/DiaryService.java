@@ -3,6 +3,7 @@ package cukcap.maum_on.Diary.Service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import cukcap.maum_on.Config.S3Service;
+import cukcap.maum_on.Diary.Dto.AiPictureResponse;
 import cukcap.maum_on.Diary.Dto.AiResponse;
 import cukcap.maum_on.Diary.Dto.UnifiedChatResponse;
 import cukcap.maum_on.Diary.Reposiroty.DiaryFileRepository;
@@ -65,6 +66,7 @@ public class DiaryService {
                 .content(diary.getWriteDiary())
                 .drawUrl(diary.getDrawUrl())
                 .aiReply(diary.getAiReply())
+                .aiDrawReply(diary.getAiDrawReply())
                 .files(diary.getDiaryFiles() != null ?
                         diary.getDiaryFiles().stream()
                                 .map(file -> DiaryDetailResponse.FileDto.builder()
@@ -225,6 +227,7 @@ public class DiaryService {
 
     @Transactional
     public String saveDraw(Long userId, String dateStr, MultipartFile drawFile) throws IOException {
+        // ... (날짜 파싱, 유저 조회, 일기 생성 로직 동일) ...
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
         LocalDate date = LocalDate.parse(dateStr, formatter);
         User user = userRepository.findById(userId)
@@ -236,13 +239,46 @@ public class DiaryService {
                         .diaryDate(date)
                         .build());
 
+        String oldEmotion = diary.getEmotion();
+        String newEmotion = null;
+
+        // 3. 그림 파일 처리
         if (drawFile != null && !drawFile.isEmpty()) {
-            // S3 업로드
+            // (1) S3 업로드
             String s3Url = s3Service.uploadFile(drawFile);
             diary.updateDrawUrl(s3Url);
+
+            // (2) AI 그림 분석 요청
+            AiPictureResponse aiRes = aiService.analyzePicture(s3Url);
+
+            if (aiRes != null && aiRes.getResult() != null) {
+                AiPictureResponse.Result result = aiRes.getResult();
+
+                newEmotion = result.getType(); // 감정
+                String description = result.getDescription(); // 설명
+                String extraTip = result.getExtra_tip(); // 팁
+
+                // 합쳐서 텍스트 생성
+                String aiDrawComment = description + "\n\n💡 Tip: " + extraTip;
+
+                // [★변경] 그림 전용 답장 컬럼에 저장!
+                diary.updateAiDrawReply(aiDrawComment);
+
+                // 감정은 공통으로 업데이트
+                diary.updateEmotion(newEmotion);
+
+                log.info("AI 그림 분석 완료: 감정={}, 코멘트={}", newEmotion, aiDrawComment);
+            }
         }
 
+        // 4. DB 저장
         diaryRepository.save(diary);
+
+        // 5. 통계 갱신
+        if (newEmotion != null && !newEmotion.equals(oldEmotion)) {
+            updateMonthlySummary(user, date, oldEmotion, newEmotion);
+        }
+
         return diary.getDrawUrl();
     }
 

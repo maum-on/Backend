@@ -1,6 +1,7 @@
 package cukcap.maum_on.Diary.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import cukcap.maum_on.Diary.Dto.AiPictureResponse;
 import cukcap.maum_on.Diary.Dto.AiResponse;
 import cukcap.maum_on.Diary.Dto.UnifiedChatResponse; // [중요] UnifiedChatResponse import 확인
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class AiService {
     private final String AI_BASE_URL = "http://3.107.0.206:8000";
     private final String DIARY_REPLY_PATH = "/diary/diary/reply";
     private final String CHAT_TO_DIARY_PATH = "/chat-diary/chat-to-diary";
+    private final String PICTURE_ANALYZE_PATH = "/picture-diary/analyze";
 
     private final ObjectMapper objectMapper;
 
@@ -125,6 +127,32 @@ public class AiService {
         } catch (Exception e) {
             log.error("AI 채팅 분석 요청 실패: {}", e.getMessage());
             throw new RuntimeException("AI 서버 통신 오류: " + e.getMessage());
+        }
+    }
+
+    public AiPictureResponse analyzePicture(String imageUrl) {
+        String url = AI_BASE_URL + PICTURE_ANALYZE_PATH;
+
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // Request Body 생성
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("image_url", imageUrl);
+
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(requestBody, headers);
+
+        try {
+            log.info("AI 그림 분석 요청 URL: {}, Body: {}", url, requestBody);
+
+            ResponseEntity<AiPictureResponse> response = restTemplate.postForEntity(url, entity, AiPictureResponse.class);
+            return response.getBody();
+
+        } catch (Exception e) {
+            log.error("AI 그림 분석 요청 실패: {}", e.getMessage());
+            // 실패 시 null 반환하여 Service에서 처리
+            return null;
         }
     }
 }
