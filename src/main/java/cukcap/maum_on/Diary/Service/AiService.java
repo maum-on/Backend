@@ -143,12 +143,16 @@ public class AiService {
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
         try {
-            // 1. 파일 리소스 생성
+            // 1. 파일 리소스 생성 (수정된 부분)
             ByteArrayResource fileResource = new ByteArrayResource(audioFile.getBytes()) {
                 @Override
                 public String getFilename() {
-                    // 원본 파일명 또는 임의의 이름 (확장자 중요할 수 있음)
-                    return audioFile.getOriginalFilename();
+                    // 원본 파일명이 있으면 사용하되, 없으면 기본값 부여
+                    String filename = audioFile.getOriginalFilename();
+                    if (filename == null || filename.isEmpty()) {
+                        return "voice_record.wav"; // 확장자는 실제 포맷에 맞게, 혹은 wav/m4a 등 일반적인 것 사용
+                    }
+                    return filename;
                 }
             };
 
@@ -159,7 +163,7 @@ public class AiService {
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
             // 3. 전송 및 응답
-            log.info("AI STT 요청 시작 URL: {}", url);
+            log.info("AI STT 요청 시작 URL: {}, 파일 크기: {}", url, audioFile.getSize());
             ResponseEntity<SttResponse> response = restTemplate.postForEntity(url, requestEntity, SttResponse.class);
 
             return response.getBody();

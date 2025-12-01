@@ -80,7 +80,11 @@ public class DiaryController {
                     .body(Map.of("code", 403, "message", "권한이 없습니다."));
         }
 
+        log.info("STT 요청 받음 - User: {}, Date: {}, FileName: {}, Size: {}",
+                userId, date, audioFile.getOriginalFilename(), audioFile.getSize());
+
         if (audioFile == null || audioFile.isEmpty()) {
+            log.error("파일이 비어있음");
             return ResponseEntity.badRequest()
                     .body(Map.of("code", 400, "message", "음성 파일이 없습니다."));
         }
