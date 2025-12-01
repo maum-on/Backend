@@ -34,6 +34,7 @@ public class AiService {
 
     private final String AI_BASE_URL2 = "http://15.134.86.188:8080";
     private final String STT_PATH = "/diary/stt";
+    private final String BOOST_PATH = "/boost/from-json";
 
     private final ObjectMapper objectMapper;
 
@@ -171,6 +172,29 @@ public class AiService {
         } catch (Exception e) {
             log.error("AI STT 변환 실패: {}", e.getMessage());
             throw new RuntimeException("음성 변환 중 오류가 발생했습니다.");
+        }
+    }
+
+    public String sendDiaryToBoost(Object requestDto) {
+        String url = AI_BASE_URL2 + BOOST_PATH;
+
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<Object> entity = new HttpEntity<>(requestDto, headers);
+
+        try {
+            log.info("AI Boost 요청 Body: {}", requestDto);
+
+            // AI 서버가 String(단순 문자열)을 반환한다고 가정
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+            return response.getBody();
+
+        } catch (Exception e) {
+            log.error("AI Boost 요청 실패: {}", e.getMessage());
+            return "AI 응원 메시지를 가져오는데 실패했어요.";
         }
     }
 }

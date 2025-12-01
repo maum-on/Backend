@@ -45,4 +45,23 @@ public class HomeController {
 
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/home/boost/{userId}/{today}")
+    public ResponseEntity<String> getAiBoost(
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
+            @PathVariable Long userId,
+            @PathVariable String today // yyyy.MM.dd
+    ) {
+        // 1. 본인 확인
+        if (!principalDetails.getId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("권한이 없습니다.");
+        }
+
+        // 2. 서비스 호출
+        String aiResponse = homeService.getBoostMessage(userId, today);
+
+        // 3. 결과 반환 (AI가 준 String 그대로 리턴)
+        return ResponseEntity.ok(aiResponse);
+    }
 }
