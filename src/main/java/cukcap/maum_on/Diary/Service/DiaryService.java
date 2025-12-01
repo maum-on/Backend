@@ -151,78 +151,66 @@ public class DiaryService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        // 2. 일기(Diary) 조회 혹은 생성 (부모 엔티티가 있어야 파일 저장이 가능)
+        // 2. 일기(Diary) 조회 혹은 생성
         Diary diary = diaryRepository.findByUserIdAndDiaryDate(userId, date)
                 .orElseGet(() -> {
                     Diary newDiary = Diary.builder()
                             .user(user)
                             .diaryDate(date)
-                            .emotion("normal") // 기본값
+                            .emotion("normal")
                             .build();
                     return diaryRepository.save(newDiary);
                 });
 
-        // 3. 파일 파싱 (UnifiedChatResponse 생성)
+        // 3. 파일 파싱 (메모리 상에서 처리)
         UnifiedChatResponse chatData;
         String fileName = file.getOriginalFilename();
 
         if (fileName != null && fileName.toLowerCase().endsWith(".json")) {
-            // 인스타그램 JSON
             chatData = fileProcessingService.processInstaFile(file, date);
         } else {
-            // 카카오톡 TXT (기본값으로 간주)
             chatData = fileProcessingService.processKakaoFile(file, date);
         }
 
-        // 파싱된 메시지가 없으면 예외 처리 또는 로그
         if (chatData.getMessages().isEmpty()) {
             throw new IllegalArgumentException("해당 날짜의 채팅 내역이 파일에 존재하지 않습니다.");
         }
 
-        // 4. AI 서버로 보내서 요약 받기
-        // meHint가 없으면 유저 닉네임을 힌트로 사용 (선택 사항)
+        // 4. AI 서버로 전송 (요약 요청)
         String hint = (meHint != null && !meHint.isEmpty()) ? meHint : user.getNickname();
 
-        // 1. AI 호출 (Map 반환)
+        // AI 분석 결과 받기 (Map)
         Map<String, Object> aiResultMap = aiService.chatToDiary(chatData, hint);
 
-        // 2. Map에서 요약 내용 추출 (AI 서버 응답 키값에 따라 수정 필요)
-        // 예: AI가 {"summary": "요약내용..."} 또는 {"result": "..."} 등을 줄 것입니다.
-        // 현재 명확하지 않으므로 전체를 문자열로 저장하거나, 특정 키를 get 해야 합니다.
+        // 요약문 추출
         String summary = "";
-
         if (aiResultMap != null) {
-            // (1) 만약 AI가 'summary'라는 키로 준다면:
             if (aiResultMap.containsKey("summary")) {
                 summary = String.valueOf(aiResultMap.get("summary"));
-            }
-            // (2) 만약 'reply'라는 키로 준다면:
-            else if (aiResultMap.containsKey("reply")) {
+            } else if (aiResultMap.containsKey("reply")) { // 혹시 키가 다를 경우 대비
                 summary = String.valueOf(aiResultMap.get("reply"));
-            }
-            // (3) 구조를 모를 땐 전체를 저장 (디버깅용)
-            else {
-                summary = aiResultMap.toString();
+            } else {
+                summary = aiResultMap.toString(); // 디버깅용
             }
         } else {
-            summary = "AI 요약 실패 (응답 없음)";
+            summary = "AI 요약 실패";
         }
 
         log.info("AI 요약 완료: {}", summary);
 
-        // 5. 원본 파일 S3 업로드
-        String s3Url = s3Service.uploadFile(file);
-
-        // 6. DB 저장 (DiaryFile - summaryText에 요약 내용 저장)
+        // 6. DB 저장 (DiaryFile)
+        // 원본 파일은 저장하지 않지만, DB 구조상 file_url이 필수(Not Null)라면 임의의 값을 넣습니다.
         DiaryFile diaryFile = DiaryFile.builder()
                 .diary(diary)
-                .fileType("json") // 파싱 후에는 JSON 구조로 취급하므로 json으로 통일하거나 origin type을 써도 됨
-                .fileUrl(s3Url)
-                .fileName(fileName)
-                .summaryText(summary) // [핵심] AI가 준 요약 저장
+                .fileType("chat_log")
+                .fileUrl("NOT_STORED") // [변경] 실제 파일 경로 대신 '미저장' 표시
+                .fileName(fileName)    // 원본 파일명은 기록용으로 남김 (필요 없다면 "masked" 등으로 변경 가능)
+                .summaryText(summary)  // [핵심] AI가 분석한 내용만 저장
                 .build();
 
         diaryFileRepository.save(diaryFile);
+
+        // 메서드 종료 시 MultipartFile 등 메모리에 있던 데이터는 GC에 의해 자동으로 삭제됨
     }
 
     @Transactional
