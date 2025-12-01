@@ -15,9 +15,10 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonIgnoreProperties(ignoreUnknown = true) // 정의되지 않은 필드는 무시
+@JsonIgnoreProperties(ignoreUnknown = true)
 @JsonPropertyOrder({"thread_id", "title", "participants", "messages", "is_still_participant", "thread_path", "magic_words"})
 public class UnifiedChatResponse {
+
     @JsonProperty("thread_id")
     private String threadId;
 
@@ -61,5 +62,8 @@ public class UnifiedChatResponse {
 
         @JsonProperty("is_geoblocked_for_viewer")
         private boolean isGeoblockedForViewer;
+
+        @JsonProperty("share")
+        private Object share;
     }
 }

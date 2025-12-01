@@ -94,7 +94,7 @@ public class DiaryService {
                         .diaryDate(date)
                         .build());
 
-        // [중요] 수정 시 통계 갱신을 위해 '기존 감정' 저장
+        // 수정 시 통계 갱신을 위해 '기존 감정' 저장
         String oldEmotion = diary.getEmotion();
 
         // 3. 텍스트 업데이트
@@ -199,13 +199,12 @@ public class DiaryService {
         log.info("AI 요약 완료: {}", summary);
 
         // 6. DB 저장 (DiaryFile)
-        // 원본 파일은 저장하지 않지만, DB 구조상 file_url이 필수(Not Null)라면 임의의 값을 넣습니다.
         DiaryFile diaryFile = DiaryFile.builder()
                 .diary(diary)
                 .fileType("chat_log")
-                .fileUrl("NOT_STORED") // [변경] 실제 파일 경로 대신 '미저장' 표시
-                .fileName(fileName)    // 원본 파일명은 기록용으로 남김 (필요 없다면 "masked" 등으로 변경 가능)
-                .summaryText(summary)  // [핵심] AI가 분석한 내용만 저장
+                .fileUrl("NOT_STORED") // 실제 파일 경로 대신 '미저장' 표시
+                .fileName(fileName)    // 원본 파일명은 기록용으로 남김
+                .summaryText(summary)  // AI가 분석한 내용만 저장
                 .build();
 
         diaryFileRepository.save(diaryFile);
@@ -215,7 +214,6 @@ public class DiaryService {
 
     @Transactional
     public String saveDraw(Long userId, String dateStr, MultipartFile drawFile) throws IOException {
-        // ... (날짜 파싱, 유저 조회, 일기 생성 로직 동일) ...
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
         LocalDate date = LocalDate.parse(dateStr, formatter);
         User user = userRepository.findById(userId)
@@ -246,13 +244,10 @@ public class DiaryService {
                 String description = result.getDescription(); // 설명
                 String extraTip = result.getExtra_tip(); // 팁
 
-                // 합쳐서 텍스트 생성
                 String aiDrawComment = description + "\n\n💡 Tip: " + extraTip;
 
-                // [★변경] 그림 전용 답장 컬럼에 저장!
                 diary.updateAiDrawReply(aiDrawComment);
 
-                // 감정은 공통으로 업데이트
                 diary.updateEmotion(newEmotion);
 
                 log.info("AI 그림 분석 완료: 감정={}, 코멘트={}", newEmotion, aiDrawComment);
@@ -338,13 +333,11 @@ public class DiaryService {
 
     // 긍정 감정 판별
     private boolean isPositive(String emotion) {
-        // AI 모델의 출력값에 맞춰 키워드 추가 필요
         return emotion.matches("^(happy|joy|excited|grateful|기쁨|행복|즐거움|신남).*");
     }
 
     // 부정 감정 판별
     private boolean isNegative(String emotion) {
-        // AI 모델의 출력값에 맞춰 키워드 추가 필요
         return emotion.matches("^(sad|angry|anxious|depressed|슬픔|화남|우울|불안).*");
     }
 }

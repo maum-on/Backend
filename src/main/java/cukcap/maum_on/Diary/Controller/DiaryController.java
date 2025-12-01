@@ -86,7 +86,6 @@ public class DiaryController {
 
         try {
             // 2. AI 서비스 호출 (STT 변환)
-            // (여기서는 DB 저장을 안 하고 변환된 텍스트만 프론트로 돌려줍니다.)
             SttResponse sttResult = aiService.convertVoiceToText(audioFile);
 
             // 3. 응답 생성
@@ -113,13 +112,13 @@ public class DiaryController {
             @RequestPart(value = "file") MultipartFile file,
             @RequestParam(value = "me_hint", required = false) String meHint
     ) {
-        // 0. SecurityConfig 체크 (로그인이 안 된 상태로 오면 principalDetails가 null일 수 있음)
+        // 0. SecurityConfig 체크
         if (principalDetails == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("code", 401, "message", "로그인이 필요합니다."));
         }
 
-        // 1. 본인 확인 (로그인한 사람 vs URL의 user_id)
+        // 1. 본인 확인
         if (!principalDetails.getId().equals(userId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("code", 403, "message", "권한이 없습니다. 본인의 파일만 업로드 가능합니다."));

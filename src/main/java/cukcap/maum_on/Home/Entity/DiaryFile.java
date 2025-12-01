@@ -19,7 +19,7 @@ public class DiaryFile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long fileId;
 
-    // ⭐️ 외래 키: 일기 ID (diary_id)
+    // 외래 키: 일기 ID (diary_id)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "diary_id")
     private Diary diary;
@@ -36,7 +36,6 @@ public class DiaryFile {
     @Column(columnDefinition = "TEXT")
     private String summaryText; // 파일 요약 내용
 
-    // DB에서 자동 관리되지만 엔티티에 포함
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

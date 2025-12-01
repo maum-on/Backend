@@ -68,32 +68,7 @@ public class AiService {
         }
     }
 
-    // 2. 채팅 파일 분석 (UnifiedChatResponse 리스트 전송)
-    public AiResponse analyzeChatFile(List<UnifiedChatResponse> chatData) {
-        String url = AI_BASE_URL1 + "/chat/analyze"; // (경로 확인 필요)
-
-        RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        HttpEntity<List<UnifiedChatResponse>> entity = new HttpEntity<>(chatData, headers);
-
-        try {
-            ResponseEntity<AiResponse> response = restTemplate.postForEntity(url, entity, AiResponse.class);
-            return response.getBody();
-        } catch (Exception e) {
-            log.error("AI 채팅 분석 요청 실패: {}", e.getMessage());
-            AiResponse.Analysis fallbackAnalysis = new AiResponse.Analysis();
-            fallbackAnalysis.setEmotions(Collections.singletonList("normal"));
-            fallbackAnalysis.setSummary("채팅 분석에 실패했습니다.");
-            return AiResponse.builder()
-                    .analysis(fallbackAnalysis)
-                    .build();
-        }
-    }
-
-    // 3. 채팅 -> 일기 변환 (파일 전송)
-    // [중요] 파라미터 타입이 UnifiedChatResponse 이어야 합니다!
+    // 2. 채팅 -> 일기 변환 (파일 전송)
     public Map<String, Object> chatToDiary(UnifiedChatResponse chatData, String meHint) {
         String url = AI_BASE_URL1 + CHAT_TO_DIARY_PATH;
 
@@ -121,7 +96,6 @@ public class AiService {
             body.add("file", fileResource);
             body.add("me_hint", meHint);
 
-            // [중요] thread_id를 Form Data로 추가
             body.add("thread_id", chatData.getThreadId());
 
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
