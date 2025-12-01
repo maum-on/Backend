@@ -1,5 +1,6 @@
 package cukcap.maum_on.Diary.Controller;
 
+import cukcap.maum_on.Diary.Dto.DiaryAnalyzeResponse;
 import cukcap.maum_on.Diary.Dto.SttResponse;
 import cukcap.maum_on.Diary.Dto.UnifiedChatResponse;
 import cukcap.maum_on.Diary.Service.AiService;
@@ -181,5 +182,22 @@ public class DiaryController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("code", 400, "message", e.getMessage()));
         }
+    }
+
+    @GetMapping("/diary/analyze/{userId}/{date}")
+    public ResponseEntity<DiaryAnalyzeResponse> getDiaryAnalyze(
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
+            @PathVariable Long userId,
+            @PathVariable("date") String dateStr
+    ) {
+        // 1. 본인 확인
+        if (!principalDetails.getId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        // 2. 서비스 호출
+        DiaryAnalyzeResponse response = diaryService.getDiaryAnalyzeData(userId, dateStr);
+
+        return ResponseEntity.ok(response);
     }
 }

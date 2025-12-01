@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import cukcap.maum_on.Config.S3Service;
 import cukcap.maum_on.Diary.Dto.AiPictureResponse;
 import cukcap.maum_on.Diary.Dto.AiResponse;
+import cukcap.maum_on.Diary.Dto.DiaryAnalyzeResponse;
 import cukcap.maum_on.Diary.Dto.UnifiedChatResponse;
 import cukcap.maum_on.Diary.Reposiroty.DiaryFileRepository;
 import cukcap.maum_on.Home.Dto.DiaryDetailResponse;
@@ -28,6 +29,7 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -339,5 +341,39 @@ public class DiaryService {
     // 부정 감정 판별
     private boolean isNegative(String emotion) {
         return emotion.matches("^(sad|angry|anxious|depressed|슬픔|화남|우울|불안).*");
+    }
+
+    @Transactional(readOnly = true)
+    public DiaryAnalyzeResponse getDiaryAnalyzeData(Long userId, String dateStr) {
+        // 1. 날짜 파싱
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+        LocalDate date = LocalDate.parse(dateStr, formatter);
+
+        // 2. 일기 조회 (없으면 예외 발생 혹은 빈 데이터 처리, 여기선 예외 처리)
+        Diary diary = diaryRepository.findByUserIdAndDiaryDate(userId, date)
+                .orElseThrow(() -> new IllegalArgumentException("해당 날짜에 일기 기록이 없습니다."));
+
+        // 3. file_summation 리스트 생성 (DiaryFile의 summaryText 모음)
+        List<String> fileSummations = diary.getDiaryFiles().stream()
+                .map(DiaryFile::getSummaryText) // summary_text 추출
+                .filter(text -> text != null && !text.isEmpty()) // null이나 빈 값 제외
+                .collect(Collectors.toList());
+
+        // 4. 내부 Data 객체 빌드
+        DiaryAnalyzeResponse.AnalyzeData data = DiaryAnalyzeResponse.AnalyzeData.builder()
+                .emotion(diary.getEmotion())
+                .drawUrl(diary.getDrawUrl())         // "draw"
+                .writeDiary(diary.getWriteDiary())   // "write_diary"
+                .fileSummation(fileSummations)       // "file_summation"
+                .aiReply(diary.getAiReply())         // "ai_reply"
+                .aiDrawReply(diary.getAiDrawReply()) // "ai_draw_reply"
+                .build();
+
+        // 5. 최종 응답 빌드
+        return DiaryAnalyzeResponse.builder()
+                .code(200)
+                .message(date.getMonthValue() + "월 " + date.getDayOfMonth() + "일 정보 조회 성공")
+                .data(data)
+                .build();
     }
 }
