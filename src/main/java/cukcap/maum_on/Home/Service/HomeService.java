@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import cukcap.maum_on.Diary.Service.AiService;
 import cukcap.maum_on.Home.Dto.AiBoostRequest;
+import cukcap.maum_on.Home.Dto.AiBoostResponse;
 import cukcap.maum_on.Home.Dto.HomeResponse;
 import cukcap.maum_on.Home.Entity.Diary;
 import cukcap.maum_on.Home.Entity.DiaryFile;
@@ -100,8 +101,8 @@ public class HomeService {
     }
 
     @Transactional(readOnly = true)
-    public String getBoostMessage(Long userId, String todayStr) {
-        // 1. 날짜 계산 (오늘 - 1일 = 어제)
+    public AiBoostResponse getBoostMessage(Long userId, String todayStr) {
+        // 1. 날짜 계산
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
         LocalDate today = LocalDate.parse(todayStr, formatter);
         LocalDate yesterday = today.minusDays(1);
@@ -109,9 +110,12 @@ public class HomeService {
         // 2. 어제 일기 조회
         Optional<Diary> diaryOpt = diaryRepository.findByUserIdAndDiaryDate(userId, yesterday);
 
-        // 3. 데이터가 없을 경우 처리
+        // 3. 데이터가 없을 경우 처리 (빈 응답 반환)
         if (diaryOpt.isEmpty()) {
-            return "어제 작성된 일기가 없어서 응원 메시지를 만들 수 없어요.";
+            return AiBoostResponse.builder()
+                    .status("no_diary")
+                    .diaryUsed(false)
+                    .build();
         }
 
         Diary diary = diaryOpt.get();
@@ -122,7 +126,7 @@ public class HomeService {
                 .filter(text -> text != null && !text.isEmpty())
                 .collect(Collectors.toList());
 
-        // 5. AI 요청 DTO 생성 (규격에 맞춤)
+        // 5. AI 요청 DTO 생성
         AiBoostRequest.BoostData boostData = AiBoostRequest.BoostData.builder()
                 .emotion(diary.getEmotion() != null ? diary.getEmotion() : "")
                 .drawUrl(diary.getDrawUrl() != null ? diary.getDrawUrl() : "")
@@ -139,7 +143,7 @@ public class HomeService {
                 .data(boostData)
                 .build();
 
-        // 6. AI 서버로 전송 및 결과 반환
+        // 6. AI 서버로 전송 및 결과 반환 (DTO)
         return aiService.sendDiaryToBoost(request);
     }
 }

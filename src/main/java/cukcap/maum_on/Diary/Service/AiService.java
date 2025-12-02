@@ -5,6 +5,7 @@ import cukcap.maum_on.Diary.Dto.AiPictureResponse;
 import cukcap.maum_on.Diary.Dto.AiResponse;
 import cukcap.maum_on.Diary.Dto.SttResponse;
 import cukcap.maum_on.Diary.Dto.UnifiedChatResponse; // [중요] UnifiedChatResponse import 확인
+import cukcap.maum_on.Home.Dto.AiBoostResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -175,7 +176,7 @@ public class AiService {
         }
     }
 
-    public String sendDiaryToBoost(Object requestDto) {
+    public AiBoostResponse sendDiaryToBoost(Object requestDto) {
         String url = AI_BASE_URL2 + BOOST_PATH;
 
         RestTemplate restTemplate = new RestTemplate();
@@ -187,14 +188,24 @@ public class AiService {
         try {
             log.info("AI Boost 요청 Body: {}", requestDto);
 
-            // AI 서버가 String(단순 문자열)을 반환한다고 가정
-            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+            ResponseEntity<AiBoostResponse> response = restTemplate.postForEntity(url, entity, AiBoostResponse.class);
 
-            return response.getBody();
+            AiBoostResponse body = response.getBody();
+
+            // audio_path를 전체 URL로 변환
+            if (body != null && body.getAudioPath() != null && body.getAudioPath().startsWith("/")) {
+                String fullUrl = AI_BASE_URL2 + body.getAudioPath();
+                body.setAudioPath(fullUrl);
+            }
+
+            return body;
 
         } catch (Exception e) {
             log.error("AI Boost 요청 실패: {}", e.getMessage());
-            return "AI 응원 메시지를 가져오는데 실패했어요.";
+            return AiBoostResponse.builder()
+                    .status("error")
+                    .version("failed")
+                    .build();
         }
     }
 }

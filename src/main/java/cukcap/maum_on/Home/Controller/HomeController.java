@@ -1,5 +1,6 @@
 package cukcap.maum_on.Home.Controller;
 
+import cukcap.maum_on.Home.Dto.AiBoostResponse;
 import cukcap.maum_on.Home.Dto.HomeResponse;
 import cukcap.maum_on.Home.Service.HomeService;
 import cukcap.maum_on.OAuth.Entity.PrincipalDetails;
@@ -47,7 +48,7 @@ public class HomeController {
     }
 
     @GetMapping("/home/boost/{userId}/{today}")
-    public ResponseEntity<String> getAiBoost(
+    public ResponseEntity<Map<String, Object>> getAiBoost(
             @AuthenticationPrincipal PrincipalDetails principalDetails,
             @PathVariable Long userId,
             @PathVariable String today // yyyy.MM.dd
@@ -55,13 +56,18 @@ public class HomeController {
         // 1. 본인 확인
         if (!principalDetails.getId().equals(userId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("권한이 없습니다.");
+                    .body(Map.of("code", 403, "message", "권한이 없습니다."));
         }
 
-        // 2. 서비스 호출
-        String aiResponse = homeService.getBoostMessage(userId, today);
+        // 2. 서비스 호출 (DTO 받음)
+        AiBoostResponse aiResponse = homeService.getBoostMessage(userId, today);
 
-        // 3. 결과 반환 (AI가 준 String 그대로 리턴)
-        return ResponseEntity.ok(aiResponse);
+        // 3. 결과 반환 (JSON 포맷 유지)
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("code", 200);
+        response.put("message", "AI 응원 메시지 생성 성공");
+        response.put("data", aiResponse); // AI가 준 전체 JSON을 data 필드에 넣음
+
+        return ResponseEntity.ok(response);
     }
 }
