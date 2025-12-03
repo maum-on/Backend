@@ -11,6 +11,8 @@ import cukcap.maum_on.Home.Entity.DiaryFile;
 import cukcap.maum_on.Home.Entity.MonthlySummary;
 import cukcap.maum_on.Home.Repository.DiaryRepository;
 import cukcap.maum_on.Home.Repository.MonthlySummaryRepository;
+import cukcap.maum_on.OAuth.Entity.User;
+import cukcap.maum_on.OAuth.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,38 +35,31 @@ public class HomeService {
 
     private final DiaryRepository diaryRepository;
     private final MonthlySummaryRepository monthlySummaryRepository;
-    private final ObjectMapper objectMapper; // JSON String 파싱용
+    private final UserRepository userRepository;
     private final AiService aiService;
+    private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public HomeResponse getHomeData(Long userId, String todayStr) {
-        // 1. 날짜 파싱 (todayStr: "2025.09.09")
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
         LocalDate today = LocalDate.parse(todayStr, formatter);
 
-        // 2. 해당 월의 시작일과 종료일 계산 (2025.09.01 ~ 2025.09.30)
         YearMonth yearMonth = YearMonth.from(today);
         LocalDate startDate = yearMonth.atDay(1);
         LocalDate endDate = yearMonth.atEndOfMonth();
 
-        // 3. MonthlySummary 조회 (없을 수도 있음, 기준일은 매월 1일)
         Optional<MonthlySummary> summaryOpt = monthlySummaryRepository.findByUserIdAndSummaryMonth(userId, startDate);
-
-        // 4. 이번 달의 모든 일기 조회
         List<Diary> diaryList = diaryRepository.findAllByUserIdAndDiaryDateBetween(userId, startDate, endDate);
 
-        // 5. DTO 데이터 조립 - 기본값 설정
         BigDecimal temperature = BigDecimal.valueOf(36.5);
-        Map<String, Integer> emotions = new HashMap<>();
         String recommendText = "데이터가 충분하지 않아 추천을 생성할 수 없어요.";
+        Map<String, Integer> emotions = new HashMap<>();
 
-        // 5-1. MonthlySummary가 있으면 덮어쓰기
         if (summaryOpt.isPresent()) {
             MonthlySummary summary = summaryOpt.get();
             if (summary.getAvgTemp() != null) temperature = summary.getAvgTemp();
             if (summary.getRecommendText() != null) recommendText = summary.getRecommendText();
 
-            // DB에 저장된 JSON String -> Map 변환
             if (summary.getEmotionsJson() != null) {
                 try {
                     emotions = objectMapper.readValue(summary.getEmotionsJson(), new TypeReference<Map<String, Integer>>() {});
@@ -74,43 +69,50 @@ public class HomeService {
             }
         }
 
-        // 6. 날짜별 일기 존재 여부 (diary_existence) 맵핑
         Map<String, HomeResponse.DiaryStatusDto> diaryExistenceMap = new HashMap<>();
 
         for (Diary diary : diaryList) {
-            String dateKey = diary.getDiaryDate().format(formatter); // "2025.09.09" 키 생성
+            String dateKey = diary.getDiaryDate().format(formatter);
+            String emotion = diary.getEmotion() == null ? "empty" : diary.getEmotion();
 
             HomeResponse.DiaryStatusDto status = HomeResponse.DiaryStatusDto.builder()
-                    .write(diary.getWriteDiary() != null && !diary.getWriteDiary().isEmpty()) // 글 내용 있으면 true
-                    .files(diary.getDiaryFiles() != null && !diary.getDiaryFiles().isEmpty()) // 파일 리스트 있으면 true
-                    .draw(diary.getDrawUrl() != null && !diary.getDrawUrl().isEmpty()) // 그림 URL 있으면 true
-                    .emotion(diary.getEmotion() == null ? "empty" : diary.getEmotion())
+                    .write(diary.getWriteDiary() != null && !diary.getWriteDiary().isEmpty())
+                    .files(diary.getDiaryFiles() != null && !diary.getDiaryFiles().isEmpty())
+                    .draw(diary.getDrawUrl() != null && !diary.getDrawUrl().isEmpty())
+                    .emotion(emotion)
                     .build();
 
             diaryExistenceMap.put(dateKey, status);
+
+            // (선택) 실시간 집계가 필요하다면 여기서 emotions.put 로직 추가
+            if (emotion != null && !emotion.equals("empty")) {
+                emotions.put(emotion, emotions.getOrDefault(emotion, 0) + 1);
+            }
         }
 
-        // 7. 최종 반환
         return HomeResponse.builder()
                 .temperature(temperature)
                 .emotions(emotions)
                 .diaryExistence(diaryExistenceMap)
                 .activityRecommend(recommendText)
-                .psychologicalTest(null) // 추후 개발
+                .psychologicalTest(null)
                 .build();
     }
 
     @Transactional(readOnly = true)
     public AiBoostResponse getBoostMessage(Long userId, String todayStr) {
-        // 1. 날짜 계산
+        // 1. 유저 정보 조회 (닉네임 가져오기 위해)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        // 2. 날짜 계산 (어제)
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
         LocalDate today = LocalDate.parse(todayStr, formatter);
         LocalDate yesterday = today.minusDays(1);
 
-        // 2. 어제 일기 조회
+        // 3. 어제 일기 조회
         Optional<Diary> diaryOpt = diaryRepository.findByUserIdAndDiaryDate(userId, yesterday);
 
-        // 3. 데이터가 없을 경우 처리 (빈 응답 반환)
         if (diaryOpt.isEmpty()) {
             return AiBoostResponse.builder()
                     .status("no_diary")
@@ -120,7 +122,7 @@ public class HomeService {
 
         Diary diary = diaryOpt.get();
 
-        // 4. 파일 요약 리스트 추출
+        // 4. 파일 요약 리스트
         List<String> fileSummations = diary.getDiaryFiles().stream()
                 .map(DiaryFile::getSummaryText)
                 .filter(text -> text != null && !text.isEmpty())
@@ -137,13 +139,14 @@ public class HomeService {
                 .build();
 
         AiBoostRequest request = AiBoostRequest.builder()
-                .userId(String.valueOf(userId))
+                //  user_id 필드에 닉네임(이름)을 넣음
+                .userId(user.getNickname())
                 .code(200)
                 .message(yesterday.format(formatter) + " 정보 조회 성공")
                 .data(boostData)
                 .build();
 
-        // 6. AI 서버로 전송 및 결과 반환 (DTO)
+        // 6. AI 전송 및 결과 반환
         return aiService.sendDiaryToBoost(request);
     }
 }

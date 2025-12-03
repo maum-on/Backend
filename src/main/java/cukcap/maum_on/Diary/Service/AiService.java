@@ -1,6 +1,7 @@
 package cukcap.maum_on.Diary.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import cukcap.maum_on.Config.S3Service;
 import cukcap.maum_on.Diary.Dto.AiPictureResponse;
 import cukcap.maum_on.Diary.Dto.AiResponse;
 import cukcap.maum_on.Diary.Dto.SttResponse;
@@ -38,6 +39,7 @@ public class AiService {
     private final String BOOST_PATH = "/boost/from-json";
 
     private final ObjectMapper objectMapper;
+    private final S3Service s3Service;
 
     // 1. 일기 분석
     public AiResponse analyzeDiaryText(Long userId, String date, String text) {
@@ -188,17 +190,37 @@ public class AiService {
         try {
             log.info("AI Boost 요청 Body: {}", requestDto);
 
-            ResponseEntity<AiBoostResponse> response = restTemplate.postForEntity(url, entity, AiBoostResponse.class);
+            // 반환 타입을 byte[]로 변경 (파일 데이터 받기)
+            ResponseEntity<byte[]> response = restTemplate.postForEntity(url, entity, byte[].class);
 
-            AiBoostResponse body = response.getBody();
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                // 1. 오디오 데이터 S3 업로드
+                byte[] audioBytes = response.getBody();
+                String fileName = "boost_" + System.currentTimeMillis() + ".mp3"; // 고유 파일명 생성
+                String s3Url = s3Service.uploadFileFromBytes(audioBytes, fileName);
 
-            // audio_path를 전체 URL로 변환
-            if (body != null && body.getAudioPath() != null && body.getAudioPath().startsWith("/")) {
-                String fullUrl = AI_BASE_URL2 + body.getAudioPath();
-                body.setAudioPath(fullUrl);
+                // 2. 헤더에서 메타데이터 추출 (스크린샷 참고: x-emotion, x-diary-used)
+                HttpHeaders resHeaders = response.getHeaders();
+                String emotion = resHeaders.getFirst("x-emotion");
+                String diaryUsedStr = resHeaders.getFirst("x-diary-used");
+                boolean diaryUsed = Boolean.parseBoolean(diaryUsedStr);
+
+                // 3. DTO 수동 생성
+                AiBoostResponse.DiaryMeta meta = new AiBoostResponse.DiaryMeta();
+                meta.setEmotion(emotion != null ? emotion : "normal");
+                meta.setHasDiary(diaryUsed);
+
+                return AiBoostResponse.builder()
+                        .status("ok")
+                        .version("mb-v2-binary")
+                        .userId("from-header") // 필요시 헤더에서 추출
+                        .diaryUsed(diaryUsed)
+                        .audioPath(s3Url) // S3 URL 입력
+                        .diaryMeta(meta)
+                        .build();
+            } else {
+                throw new RuntimeException("AI 서버 응답 오류: " + response.getStatusCode());
             }
-
-            return body;
 
         } catch (Exception e) {
             log.error("AI Boost 요청 실패: {}", e.getMessage());
