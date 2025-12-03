@@ -1,6 +1,7 @@
 package cukcap.maum_on.Diary.Dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,14 +14,10 @@ import lombok.NoArgsConstructor;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AiPictureResponse {
 
-    private Result result;
+    private String emotion;       // 감정 (예: happy)
 
-    @Data
-    @NoArgsConstructor
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Result {
-        private String type;        // 감정 타입 (예: happy) -> Diary.emotion에 저장
-        private String description; // 그림 설명
-        private String extra_tip;   // 조언
-    }
+    @JsonProperty("emotion_ko")
+    private String emotionKo;     // 감정 한글명
+
+    private String reason;        // 분석 결과/이유
 }

@@ -239,27 +239,27 @@ public class DiaryService {
             // (2) AI 그림 분석 요청
             AiPictureResponse aiRes = aiService.analyzePicture(s3Url);
 
-            if (aiRes != null && aiRes.getResult() != null) {
-                AiPictureResponse.Result result = aiRes.getResult();
+            // [수정] 변경된 DTO 구조에 맞춰 데이터 추출
+            if (aiRes != null && aiRes.getEmotion() != null) {
 
-                newEmotion = result.getType(); // 감정
-                String description = result.getDescription(); // 설명
-                String extraTip = result.getExtra_tip(); // 팁
+                newEmotion = aiRes.getEmotion(); // 감정 (happy 등)
+                String reason = aiRes.getReason(); // 분석 내용
 
-                String aiDrawComment = description + "\n\n💡 Tip: " + extraTip;
+                // DB 업데이트
+                // aiDrawReply 컬럼에 'reason'을 저장
+                diary.updateAiDrawReply(reason);
 
-                diary.updateAiDrawReply(aiDrawComment);
-
+                // 감정 업데이트
                 diary.updateEmotion(newEmotion);
 
-                log.info("AI 그림 분석 완료: 감정={}, 코멘트={}", newEmotion, aiDrawComment);
+                log.info("AI 그림 분석 완료: 감정={}, 내용={}", newEmotion, reason);
             }
         }
 
         // 4. DB 저장
         diaryRepository.save(diary);
 
-        // 5. 통계 갱신
+        // 5. 통계 갱신 (기존 로직 유지)
         if (newEmotion != null && !newEmotion.equals(oldEmotion)) {
             updateMonthlySummary(user, date, oldEmotion, newEmotion);
         }

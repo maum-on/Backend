@@ -32,7 +32,7 @@ public class AiService {
     private final String AI_BASE_URL1 = "http://3.107.0.206:8000";
     private final String DIARY_REPLY_PATH = "/diary/diary/reply";
     private final String CHAT_TO_DIARY_PATH = "/chat-diary/chat-to-diary";
-    private final String PICTURE_ANALYZE_PATH = "/picture-diary/analyze";
+    private final String PICTURE_ANALYZE_PATH = "/picture/emotion/url";
 
     private final String AI_BASE_URL2 = "http://15.134.86.188:8080";
     private final String STT_PATH = "/diary/stt";
