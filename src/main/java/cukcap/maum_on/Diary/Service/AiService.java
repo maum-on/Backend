@@ -162,19 +162,27 @@ public class AiService {
 
             // 2. Body 구성 ("audio" 키)
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("audio", fileResource);
+
+            HttpHeaders partHeaders = new HttpHeaders();
+            // 프론트에서 보낸 Content-Type (예: audio/webm)을 그대로 전달
+            partHeaders.setContentType(MediaType.parseMediaType(audioFile.getContentType()));
+
+            // 리소스와 헤더를 감싸서 HttpEntity로 만듦
+            HttpEntity<ByteArrayResource> fileEntity = new HttpEntity<>(fileResource, partHeaders);
+
+            body.add("audio", fileEntity);
 
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
             // 3. 전송 및 응답
-            log.info("AI STT 요청 시작 URL: {}, 파일 크기: {}", url, audioFile.getSize());
+            log.info("AI STT 요청 시작 URL: {}, 파일명: {}, 타입: {}", url, audioFile.getOriginalFilename(), audioFile.getContentType());
             ResponseEntity<SttResponse> response = restTemplate.postForEntity(url, requestEntity, SttResponse.class);
 
             return response.getBody();
 
         } catch (Exception e) {
             log.error("AI STT 변환 실패: {}", e.getMessage());
-            throw new RuntimeException("음성 변환 중 오류가 발생했습니다.");
+            throw new RuntimeException("음성 변환 중 오류가 발생했습니다: " + e.getMessage());
         }
     }
 
