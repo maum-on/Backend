@@ -54,7 +54,9 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
                 "http://localhost:8080",
-                "https://maum-on-fdmw.vercel.app"
+                "https://maum-on-fdmw.vercel.app",
+                "https://luvbug.shop",
+                "https://www.luvbug.shop"
         ));
 
         // 2. 허용할 HTTP 메서드
