@@ -46,10 +46,9 @@ public class HomeService {
 
         YearMonth yearMonth = YearMonth.from(today);
         LocalDate startDate = yearMonth.atDay(1);
-        LocalDate endDate = yearMonth.atEndOfMonth();
 
         Optional<MonthlySummary> summaryOpt = monthlySummaryRepository.findByUserIdAndSummaryMonth(userId, startDate);
-        List<Diary> diaryList = diaryRepository.findAllByUserIdAndDiaryDateBetween(userId, startDate, endDate);
+        List<Diary> diaryList = diaryRepository.findAllByUserId(userId);
 
         BigDecimal temperature = BigDecimal.valueOf(36.5);
         String recommendText = "데이터가 충분하지 않아 추천을 생성할 수 없어요.";
@@ -84,7 +83,6 @@ public class HomeService {
 
             diaryExistenceMap.put(dateKey, status);
 
-            // (선택) 실시간 집계가 필요하다면 여기서 emotions.put 로직 추가
             if (emotion != null && !emotion.equals("empty")) {
                 emotions.put(emotion, emotions.getOrDefault(emotion, 0) + 1);
             }
