@@ -26,6 +26,10 @@ public class DiaryAnalyzeResponse {
         @JsonProperty("write_diary")
         private String writeDiary; // DB: write_diary
 
+        // 채팅 분석 일기 추가
+        @JsonProperty("chat_diary")
+        private String chatDiary;
+
         @JsonProperty("file_summation") // JSON에서는 "file_summation"으로 나감
         private List<String> fileSummation; // DB: diary_file 테이블의 summary_text 목록
 

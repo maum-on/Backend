@@ -159,10 +159,13 @@ public class DiaryService {
                     Diary newDiary = Diary.builder()
                             .user(user)
                             .diaryDate(date)
-                            .emotion("normal")
+                            .emotion("normal") // 초기값
                             .build();
                     return diaryRepository.save(newDiary);
                 });
+
+        // 수정 전 기존 감정 저장 (통계 갱신용)
+        String oldEmotion = diary.getEmotion();
 
         // 3. 파일 파싱 (메모리 상에서 처리)
         UnifiedChatResponse chatData;
@@ -184,34 +187,53 @@ public class DiaryService {
         // AI 분석 결과 받기 (Map)
         Map<String, Object> aiResultMap = aiService.chatToDiary(chatData, hint);
 
-        // 요약문 추출
-        String summary = "";
+        // AI 응답 데이터를 분해하여 각 DB 컬럼에 매핑
+        String newEmotion = null;
+        String keywordsSummary = "";
+
         if (aiResultMap != null) {
-            if (aiResultMap.containsKey("summary")) {
-                summary = String.valueOf(aiResultMap.get("summary"));
-            } else if (aiResultMap.containsKey("reply")) { // 혹시 키가 다를 경우 대비
-                summary = String.valueOf(aiResultMap.get("reply"));
-            } else {
-                summary = aiResultMap.toString(); // 디버깅용
+            // (1) diary_text -> chat_diary 컬럼에 저장
+            if (aiResultMap.containsKey("diary_text")) {
+                String chatDiaryText = String.valueOf(aiResultMap.get("diary_text"));
+                diary.updateChatDiary(chatDiaryText); // writeDiary 덮어쓰기 방지
             }
+
+            // (2) emotion -> Diary 테이블의 emotion
+            if (aiResultMap.containsKey("emotion")) {
+                newEmotion = String.valueOf(aiResultMap.get("emotion"));
+                diary.updateEmotion(newEmotion);
+            }
+
+            // (3) keywords -> DiaryFile 테이블의 summary_text
+            if (aiResultMap.containsKey("keywords")) {
+                Object keywordsObj = aiResultMap.get("keywords");
+                // 리스트인 경우 문자열로 변환 (예: [키워드1, 키워드2])
+                keywordsSummary = keywordsObj.toString();
+            }
+
+            log.info("AI 분석 데이터 분산 저장 완료: 감정={}, 키워드={}", newEmotion, keywordsSummary);
         } else {
-            summary = "AI 요약 실패";
+            keywordsSummary = "AI 요약 실패";
         }
 
-        log.info("AI 요약 완료: {}", summary);
+        // 5. Diary 엔티티 저장 (emotion, write_diary 업데이트 반영)
+        diaryRepository.save(diary);
 
-        // 6. DB 저장 (DiaryFile)
+        // 6. 감정이 변경되었으면 MonthlySummary 업데이트
+        if (newEmotion != null && !newEmotion.equals(oldEmotion)) {
+            updateMonthlySummary(user, date, oldEmotion, newEmotion);
+        }
+
+        // 7. DiaryFile 저장 (keywords만 summary_text에 저장)
         DiaryFile diaryFile = DiaryFile.builder()
                 .diary(diary)
                 .fileType("chat_log")
-                .fileUrl("NOT_STORED") // 실제 파일 경로 대신 '미저장' 표시
-                .fileName(fileName)    // 원본 파일명은 기록용으로 남김
-                .summaryText(summary)  // AI가 분석한 내용만 저장
+                .fileUrl("NOT_STORED")
+                .fileName(fileName)
+                .summaryText(keywordsSummary)  // 키워드 리스트만 저장됨
                 .build();
 
         diaryFileRepository.save(diaryFile);
-
-        // 메서드 종료 시 MultipartFile 등 메모리에 있던 데이터는 GC에 의해 자동으로 삭제됨
     }
 
     @Transactional
@@ -362,11 +384,12 @@ public class DiaryService {
         // 4. 내부 Data 객체 빌드
         DiaryAnalyzeResponse.AnalyzeData data = DiaryAnalyzeResponse.AnalyzeData.builder()
                 .emotion(diary.getEmotion())
-                .drawUrl(diary.getDrawUrl())         // "draw"
-                .writeDiary(diary.getWriteDiary())   // "write_diary"
-                .fileSummation(fileSummations)       // "file_summation"
-                .aiReply(diary.getAiReply())         // "ai_reply"
-                .aiDrawReply(diary.getAiDrawReply()) // "ai_draw_reply"
+                .drawUrl(diary.getDrawUrl())
+                .writeDiary(diary.getWriteDiary()) // 직접 쓴 일기
+                .chatDiary(diary.getChatDiary())   // 채팅 기반 일기
+                .fileSummation(fileSummations)
+                .aiReply(diary.getAiReply())
+                .aiDrawReply(diary.getAiDrawReply())
                 .build();
 
         // 5. 최종 응답 빌드

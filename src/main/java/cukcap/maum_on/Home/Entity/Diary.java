@@ -40,6 +40,10 @@ public class Diary {
     @Column(name = "write_diary", columnDefinition = "TEXT")
     private String writeDiary;
 
+    // 채팅 분석 결과로 나온 일기 내용
+    @Column(name = "chat_diary", columnDefinition = "TEXT")
+    private String chatDiary;
+
     @Column(name = "draw_url")
     private String drawUrl;
 
@@ -65,7 +69,9 @@ public class Diary {
     public void updateWriteDiary(String writeDiary) {
         this.writeDiary = writeDiary;
     }
-
+    public void updateChatDiary(String chatDiary) {
+        this.chatDiary = chatDiary;
+    }
     public void updateEmotion(String emotion) {
         this.emotion = emotion;
     }
