@@ -53,7 +53,8 @@ public class SecurityConfig {
         // 1. 허용할 프론트엔드 도메인 명시
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
-                "http://localhost:8080"
+                "http://localhost:8080",
+                "https://maum-on-fdmw.vercel.app"
         ));
 
         // 2. 허용할 HTTP 메서드
