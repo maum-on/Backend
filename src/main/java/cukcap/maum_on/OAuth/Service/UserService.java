@@ -44,4 +44,17 @@ public class UserService {
 
         return kakaoId; // 카카오 연결 끊기를 위해 kakaoId 반환
     }
+
+    // 카카오 ID로 회원 탈퇴 처리 (웹훅용)
+    @Transactional
+    public void deleteUserByKakaoId(Long kakaoId) {
+        // 1. 카카오 ID로 유저 찾기
+        User user = userRepository.findByKakaoId(kakaoId)
+                .orElse(null); // 이미 삭제된 유저일 수도 있음
+
+        if (user != null) {
+            // 2. 기존 탈퇴 로직 재사용 (내부 ID로 삭제)
+            deleteUserAccount(user.getId());
+        }
+    }
 }

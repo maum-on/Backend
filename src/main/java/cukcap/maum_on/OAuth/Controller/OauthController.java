@@ -12,10 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -106,5 +103,32 @@ public class OauthController {
         Map<String, String> response = new HashMap<>();
         response.put("message", "회원 탈퇴 완료");
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/auth/kakao/unlink")
+    @ResponseBody
+    public ResponseEntity<String> kakaoUnlinkWebhook(
+            @RequestParam("user_id") Long kakaoId,
+            @RequestHeader(value = "Authorization", required = false) String adminKey
+    ) {
+        log.info("카카오 연결 끊기 웹훅 수신 - kakaoId: {}", kakaoId);
+
+        // (선택) 헤더의 Admin 키를 검증하여 카카오가 보낸 요청인지 확인할 수도 있습니다.
+        // if (!("KakaoAK " + adminKeyProperty).equals(adminKey)) { ... }
+
+        try {
+            // DB에서 회원 정보 삭제
+            userService.deleteUserByKakaoId(kakaoId);
+            log.info("회원 탈퇴(웹훅) 처리 완료 - kakaoId: {}", kakaoId);
+
+            // 카카오에게 "잘 처리했다"고 응답 (200 OK 필수)
+            return ResponseEntity.ok("SUCCESS");
+
+        } catch (Exception e) {
+            log.error("웹훅 처리 중 오류 발생", e);
+            // 오류가 나더라도 카카오 서버가 재전송하지 않도록 OK를 보내는 게 일반적일 수 있음
+            // 하지만 확실한 처리를 위해 500을 보낼 수도 있습니다. 여기선 200 반환.
+            return ResponseEntity.ok("FAIL");
+        }
     }
 }
