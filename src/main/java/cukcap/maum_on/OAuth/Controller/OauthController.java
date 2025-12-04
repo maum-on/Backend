@@ -113,9 +113,6 @@ public class OauthController {
     ) {
         log.info("카카오 연결 끊기 웹훅 수신 - kakaoId: {}", kakaoId);
 
-        // (선택) 헤더의 Admin 키를 검증하여 카카오가 보낸 요청인지 확인할 수도 있습니다.
-        // if (!("KakaoAK " + adminKeyProperty).equals(adminKey)) { ... }
-
         try {
             // DB에서 회원 정보 삭제
             userService.deleteUserByKakaoId(kakaoId);
@@ -126,8 +123,6 @@ public class OauthController {
 
         } catch (Exception e) {
             log.error("웹훅 처리 중 오류 발생", e);
-            // 오류가 나더라도 카카오 서버가 재전송하지 않도록 OK를 보내는 게 일반적일 수 있음
-            // 하지만 확실한 처리를 위해 500을 보낼 수도 있습니다. 여기선 200 반환.
             return ResponseEntity.ok("FAIL");
         }
     }
